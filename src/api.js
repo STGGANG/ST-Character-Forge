@@ -1,0 +1,391 @@
+// 프롬프트는 작성한 그대로 전송
+// - 실리태번의 매크로 치환({{user}} → 현재 페르소나 이름 등)을 거치지 않음
+// - 현재 페르소나 설명·채팅 기록·다른 확장의 프롬프트 주입이 섞이지 않음
+// - 채팅용 설정(사용자 정지 문자열, 어시스턴트 프리필, 웹 검색)은 빼고 보냄 — 결과가 중간에 끊기는 원인
+// - 실리태번 전역 설정(페르소나 등)을 임시로 바꾸지 않음
+
+import { extension_settings, getContext } from "../../../../extensions.js";
+import { generateRaw, amount_gen } from "../../../../../script.js";
+import { state, log, getSettings, cancelledError } from './state.js';
+
+export function getConnectionProfiles() {
+    const profiles = extension_settings?.connectionManager?.profiles || [];
+    return profiles.map(p => ({ id: p.id, name: p.name }));
+}
+
+function positive(value) {
+    const number = Number(value);
+    return number > 0 ? Math.floor(number) : null;
+}
+
+// 연결 설정의 응답 길이가 채팅용으로 짧으면 프로필이 잘리므로 권장값으로 올림 (확장에서 직접 지정한 값은 그대로)
+const MIN_OUTPUT_TOKENS = 5000;
+
+function outputLimit(override, inheritedValue) {
+    if (override) return { maxTokens: override, inherited: false };
+    if (inheritedValue && inheritedValue < MIN_OUTPUT_TOKENS) {
+        return { maxTokens: MIN_OUTPUT_TOKENS, inherited: true, raisedFrom: inheritedValue };
+    }
+    return { maxTokens: inheritedValue ?? null, inherited: true };
+}
+
+function resolveTarget(context, settings) {
+    const override = positive(settings.maxTokens);
+    const presetManager = type => context.getPresetManager?.(type);
+
+    if (settings.connectionProfile) {
+        if (context.extensionSettings?.disabledExtensions?.includes('connection-manager')) {
+            throw new Error('실리태번의 Connection Manager 확장이 꺼져 있습니다. 켜거나 "현재 연결 사용"을 선택하십시오.');
+        }
+        const profile = (extension_settings?.connectionManager?.profiles || []).find(p => p.id === settings.connectionProfile);
+        if (!profile) {
+            throw new Error('선택한 연결 프로필을 찾을 수 없습니다. API 설정에서 프로필을 다시 선택하십시오.');
+        }
+        const mapping = context.CONNECT_API_MAP?.[profile.api];
+        const label = `연결 프로필 "${profile.name}"`;
+
+        if (mapping?.selected === 'openai' && mapping.source) {
+            const preset = profile.preset ? presetManager('openai')?.getCompletionPresetByName?.(profile.preset) : null;
+            const inheritedMax = positive(preset?.openai_max_tokens) ?? positive(context.chatCompletionSettings?.openai_max_tokens) ?? 4096;
+            return {
+                kind: 'cc', label, profile, preset: preset || {},
+                source: mapping.source, model: profile.model,
+                ...outputLimit(override, inheritedMax),
+            };
+        }
+        if (mapping?.selected === 'textgenerationwebui' && mapping.type) {
+            const preset = profile.preset ? presetManager('textgenerationwebui')?.getCompletionPresetByName?.(profile.preset) : null;
+            const instruct = profile.instruct ? presetManager('instruct')?.getCompletionPresetByName?.(profile.instruct) : null;
+            const inheritedMax = positive(preset?.genamt) ?? positive(amount_gen) ?? 1024;
+            return {
+                kind: 'tc', label, profile, preset: preset || {}, instruct,
+                apiType: mapping.type, model: profile.model, server: profile['api-url'],
+                ...outputLimit(override, inheritedMax),
+            };
+        }
+        throw new Error(`${label}의 API 형식(${profile.api || '알 수 없음'})은 지원하지 않습니다.`);
+    }
+
+    if (context.mainApi === 'openai' && typeof context.ChatCompletionService?.presetToGeneratePayload === 'function') {
+        const oai = context.chatCompletionSettings || {};
+        return {
+            kind: 'cc', label: `현재 연결 (${oai.chat_completion_source || 'Chat Completion'})`, preset: {},
+            source: oai.chat_completion_source, model: context.getChatCompletionModel?.(oai),
+            ...outputLimit(override, positive(oai.openai_max_tokens) ?? 4096),
+        };
+    }
+    if (context.mainApi === 'textgenerationwebui' && typeof context.TextCompletionService?.presetToGeneratePayload === 'function') {
+        const tc = context.textCompletionSettings || {};
+        const instruct = context.powerUserSettings?.instruct;
+        return {
+            kind: 'tc', label: `현재 연결 (${tc.type || 'Text Completion'})`, preset: {},
+            instruct: instruct?.enabled ? instruct : null,
+            apiType: tc.type, server: context.getTextGenServer?.(tc.type),
+            ...outputLimit(override, positive(amount_gen) ?? 1024),
+        };
+    }
+    // KoboldAI / NovelAI / Horde 또는 구버전 실리태번
+    return {
+        kind: 'raw', label: `현재 연결 (${context.mainApi || '알 수 없음'})`,
+        ...outputLimit(override, positive(amount_gen)),
+    };
+}
+
+export function describeConnection() {
+    try {
+        const target = resolveTarget(getContext(), getSettings());
+        return { label: target.label, maxTokens: target.maxTokens, inherited: target.inherited, raisedFrom: target.raisedFrom };
+    } catch (error) {
+        return { label: '', maxTokens: null, inherited: true, error: error.message };
+    }
+}
+
+// connectionProfile: 이 요청만 다른 연결 프로필로 보낼 때 (대화형 서포터)
+export async function callGenerationAPI(messages, { signal, label = '', connectionProfile } = {}) {
+    const context = getContext();
+    const settings = getSettings();
+    const target = resolveTarget(context, connectionProfile ? { ...settings, connectionProfile } : settings);
+    target.stream = settings.streamRequests !== false;
+    const startedAt = Date.now();
+
+    state.lastRequest = {
+        time: Date.now(),
+        label,
+        route: target.label,
+        maxTokens: target.maxTokens,
+        messages: structuredClone(messages),
+        status: 'pending',
+    };
+    const record = state.lastRequest;
+
+    let result;
+    try {
+        if (target.kind === 'cc') result = await sendChatCompletion(context, target, messages, signal);
+        else if (target.kind === 'tc') result = await sendTextCompletion(context, target, messages, signal);
+        else result = await sendViaGenerateRaw(messages, target.maxTokens);
+    } catch (error) {
+        record.status = 'error';
+        if (signal?.aborted) throw cancelledError();
+        let detail = error?.cause?.message || error?.message || String(error);
+        // 한 번에 받는 요청이 오래 걸리면 중계 서버·게이트웨이가 연결을 끊음 (오류 문구가 "<none>" 등으로 보임)
+        if (target.kind === 'cc' && !target.stream && Date.now() - startedAt >= 90000) {
+            detail += ' — 응답이 오래 걸려 API 서버(중계 서버)가 연결을 끊은 것으로 보입니다. 설정 탭에서 "스트리밍으로 받기"를 켜 주십시오.';
+        }
+        throw new Error(target.profile ? `${target.label} 요청 실패: ${detail}` : detail);
+    }
+
+    if (signal?.aborted) throw cancelledError();
+    record.status = result.truncated ? 'truncated' : 'done';
+
+    if (typeof result.text !== 'string' || !result.text.trim()) {
+        // 사고 모델이 출력 한도를 생각하는 데 다 쓰면 본문이 비어서 옴
+        if (result.truncated || result.reasoningChars > 0) {
+            const limit = target.maxTokens ? `${target.maxTokens.toLocaleString()}토큰` : '출력 한도';
+            throw new Error(`모델이 생각(추론)하는 데 ${limit}를 다 써서 본문을 쓰지 못했습니다. 설정 탭의 최대 출력 토큰을 크게(예: 32000) 늘리거나, 추론을 짧게 하는 프리셋·모델로 다시 시도하십시오.`);
+        }
+        throw new Error('API에서 빈 응답을 받았습니다. 출력 토큰 한도나 모델의 거부 여부를 확인하십시오.');
+    }
+    return result;
+}
+
+// 연결 확인 — 짧은 요청 하나로 응답이 오는지만 봄 (지금 고른 연결·출력 설정 그대로)
+// connectionProfile: 서포터 연결을 시험할 때 (비우면 메인 연결 프로필)
+export async function testConnection(signal, { connectionProfile } = {}) {
+    const startedAt = Date.now();
+    const result = await callGenerationAPI([
+        { role: 'system', content: 'This is a connection test.' },
+        { role: 'user', content: 'Reply with just "OK".' },
+    ], { signal, label: '연결 테스트', connectionProfile });
+    return { seconds: (Date.now() - startedAt) / 1000, reply: result.text.trim() };
+}
+
+let scriptModulePromise = null;
+async function extractText(raw, api) {
+    if (typeof raw === 'string') return raw;
+    scriptModulePromise ??= import("../../../../../script.js").catch(() => ({}));
+    const script = await scriptModulePromise;
+    if (typeof script.extractMessageFromData === 'function') {
+        const text = script.extractMessageFromData(raw, api);
+        if (typeof text === 'string') return text;
+    }
+    return raw?.choices?.[0]?.message?.content ?? raw?.choices?.[0]?.text ?? raw?.content ?? '';
+}
+
+// API가 출력 한도 때문에 멈췄다고 알려줬는지
+// (OpenAI 호환 API는 알려주지만, 실리태번 서버는 Claude·Gemini 응답에서 이 정보를 빼고 전달함)
+function detectTruncation(raw) {
+    const reason = raw?.choices?.[0]?.finish_reason ?? raw?.stop_reason ?? raw?.candidates?.[0]?.finishReason ?? raw?.finish_reason;
+    return ['length', 'max_tokens', 'MAX_TOKENS', 'model_length'].includes(String(reason));
+}
+
+let openaiModulePromise = null;
+async function findProxy(name) {
+    if (!name || name === 'None') return null;
+    openaiModulePromise ??= import("../../../../openai.js").catch(() => ({}));
+    const openai = await openaiModulePromise;
+    return (openai.proxies || []).find(p => p.name === name) || null;
+}
+
+const TRUNCATION_REASONS = ['length', 'max_tokens', 'MAX_TOKENS', 'model_length'];
+
+// 스트리밍 조각에 "출력 한도로 멈춤" 표시가 있는지
+// (OpenAI 호환: finish_reason / Claude: message_delta의 stop_reason / Gemini: finishReason / Cohere: finish_reason)
+function isStreamTruncation(parsed) {
+    const reasons = [
+        parsed?.choices?.[0]?.finish_reason,
+        parsed?.delta?.stop_reason,
+        parsed?.candidates?.[0]?.finishReason,
+        parsed?.delta?.finish_reason,
+        parsed?.stop_reason,
+    ];
+    return reasons.some(reason => TRUNCATION_REASONS.includes(String(reason)));
+}
+
+function streamErrorMessage(body, status) {
+    try {
+        const data = JSON.parse(body);
+        const message = data?.error?.message || (typeof data?.error === 'string' ? data.error : '') || data?.message || data?.detail;
+        if (message) return String(message);
+    } catch { /* 본문이 JSON이 아님 */ }
+    const text = String(body || '').trim();
+    return text ? text.slice(0, 300) : `서버 응답 ${status}`;
+}
+
+// 스트리밍 요청을 직접 읽음 — 실리태번의 스트리밍 함수는 "출력 한도로 멈췄는지"를 알려주지 않아서
+// 글자 해석은 실리태번의 getStreamingReply를 그대로 사용 (API별 형식 차이 처리)
+async function streamChatCompletion(context, payload, signal) {
+    openaiModulePromise ??= import("../../../../openai.js").catch(() => ({}));
+    const [openai, sse] = await Promise.all([
+        openaiModulePromise,
+        import("../../../../sse-stream.js").catch(() => ({})),
+    ]);
+    const EventSourceStream = sse.default;
+    if (typeof openai.getStreamingReply !== 'function' || typeof EventSourceStream !== 'function'
+        || typeof context.getRequestHeaders !== 'function') {
+        return null;
+    }
+
+    const response = await fetch('/api/backends/chat-completions/generate', {
+        method: 'POST',
+        headers: context.getRequestHeaders(),
+        cache: 'no-cache',
+        body: JSON.stringify(payload),
+        signal,
+    });
+    if (!response.ok) {
+        throw new Error(streamErrorMessage(await response.text().catch(() => ''), response.status));
+    }
+
+    const eventStream = new EventSourceStream();
+    response.body.pipeThrough(eventStream);
+    const reader = eventStream.readable.getReader();
+    const replyState = { reasoning: '', images: [], signature: '', toolSignatures: {} };
+    let text = '';
+    let truncated = false;
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const raw = value?.data;
+        if (!raw || raw === '[DONE]') {
+            if (raw === '[DONE]') break;
+            continue;
+        }
+        let parsed;
+        try {
+            parsed = JSON.parse(raw);
+        } catch {
+            continue;
+        }
+        if (parsed?.error) throw new Error(streamErrorMessage(raw, response.status));
+        if (isStreamTruncation(parsed)) truncated = true;
+        if (Array.isArray(parsed?.choices) && parsed.choices[0]?.index > 0) continue; // 여러 개를 요청한 경우의 나머지
+        // 추론(thinking) 내용은 결과에 넣지 않고, 진행 표시에만 씀 (생각하는 동안 멈춘 것처럼 보이지 않게)
+        text += openai.getStreamingReply(parsed, replyState, {
+            chatCompletionSource: payload.chat_completion_source,
+            overrideShowThoughts: true,
+        }) || '';
+        state.progressListener?.(text.length, replyState.reasoning.length);
+    }
+    return { text, truncated, reasoningChars: replyState.reasoning.length };
+}
+
+// Chat Completion — 실리태번 설정(모델·프록시·샘플러)은 사용하되 메시지는 가공하지 않음
+async function sendChatCompletion(context, target, messages, signal) {
+    const service = context.ChatCompletionService;
+    const base = {
+        messages: structuredClone(messages),
+        chat_completion_source: target.source,
+        stream: false,
+        max_tokens: target.maxTokens,
+    };
+    if (target.model) base.model = target.model;
+
+    // 연결 프로필 — 실리태번 Connection Manager와 같은 방식으로 연결 정보 적용
+    const profile = target.profile;
+    if (profile) {
+        if (profile['secret-id']) base.secret_id = profile['secret-id'];
+        const url = profile['api-url'];
+        if (url) {
+            for (const field of ['custom_url', 'vertexai_region', 'zai_endpoint', 'siliconflow_endpoint', 'minimax_endpoint', 'pollinations_endpoint']) {
+                base[field] = url;
+            }
+        }
+        if (profile['prompt-post-processing']) base.custom_prompt_post_processing = profile['prompt-post-processing'];
+        const proxy = await findProxy(profile.proxy);
+        if (proxy?.url) {
+            base.reverse_proxy = proxy.url;
+            base.proxy_password = proxy.password;
+        }
+    }
+
+    log(`Sending via ${target.label}${target.stream ? ' (streaming)' : ''}`);
+    const payload = await service.presetToGeneratePayload(target.preset || {}, {}, base);
+
+    payload.stream = !!target.stream;
+    for (const key of ['stop', 'assistant_prefill', 'assistant_impersonation', 'tools', 'tool_choice', 'json_schema', 'response_format']) {
+        delete payload[key];
+    }
+    // 실리태번이 현재 페르소나·캐릭터 이름을 함께 실어 보내는데, 프롬프트 후처리("한 메시지로 합치기" 등)에서
+    // 메시지 앞에 "이름: "으로 붙을 수 있어 비움 (만드는 인물의 이름에 현재 페르소나 이름이 섞이지 않게)
+    payload.user_name = '';
+    payload.char_name = '';
+    payload.group_names = [];
+    if ('enable_web_search' in payload) payload.enable_web_search = false;
+    if ('request_images' in payload) payload.request_images = false;
+
+    // 스트리밍: 글자가 흐르는 동안 연결이 유지되어, 오래 걸리는 생성이 중간에 끊기지 않음
+    if (payload.stream) {
+        const streamed = await streamChatCompletion(context, payload, signal);
+        if (streamed) return streamed;
+
+        // 실리태번 내부 모듈을 못 읽는 경우: 실리태번의 스트리밍 함수 사용 (출력 한도 여부는 알 수 없음)
+        const stream = await service.sendRequest(payload, true, signal);
+        let text = '';
+        for await (const chunk of stream()) {
+            text = chunk.text || '';
+            state.progressListener?.(text.length, String(chunk.state?.reasoning || '').length);
+        }
+        return { text, truncated: false };
+    }
+
+    const raw = await service.sendRequest(payload, false, signal);
+    return { text: await extractText(raw, 'openai'), truncated: detectTruncation(raw) };
+}
+
+async function sendTextCompletion(context, target, messages, signal) {
+    const service = context.TextCompletionService;
+
+    let prompt;
+    let instructStops = [];
+    if (target.instruct && typeof service.constructPrompt === 'function') {
+        prompt = service.constructPrompt(structuredClone(messages), target.instruct);
+        try {
+            const instructModule = await import("../../../../instruct-mode.js");
+            instructStops = instructModule.getInstructStoppingSequences?.({ customInstruct: target.instruct, useStopStrings: false }) || [];
+        } catch { /* 정지 문자열 없이 진행 */ }
+    } else {
+        prompt = messages.map(m => m.content).join('\n\n') + '\n\n';
+    }
+
+    const base = {
+        prompt,
+        stream: false,
+        max_tokens: target.maxTokens,
+        api_type: target.apiType,
+    };
+    if (target.server) base.api_server = target.server;
+    if (target.model) base.model = target.model;
+    if (target.profile?.['secret-id']) base.secret_id = target.profile['secret-id'];
+
+    log(`Sending via ${target.label}`);
+    const payload = await service.presetToGeneratePayload(target.preset || {}, {}, base);
+    payload.stream = false;
+    // 채팅용 정지 문자열("\n캐릭터이름:" 등)은 프로필의 대사 예시에서 출력을 끊으므로 인스트럭트 끝 표시만 사용
+    payload.stopping_strings = instructStops;
+    payload.stop = instructStops;
+
+    const raw = await service.sendRequest(payload, false, signal);
+    let text = await extractText(raw, 'textgenerationwebui');
+    for (const stop of instructStops) {
+        if (stop && text.endsWith(stop)) text = text.slice(0, -stop.length);
+    }
+    return { text, truncated: detectTruncation(raw) };
+}
+
+// 기타 API 폴백 — 이 경로는 실리태번이 매크로를 치환하므로
+// {{user}}를 중립 표기로 바꿔 현재 페르소나 이름·설명이 섞이지 않게 함
+async function sendViaGenerateRaw(messages, maxTokens) {
+    const protect = text => String(text)
+        .replace(/\{\{user\}\}/gi, '[user]')
+        .replace(/\{\{persona\}\}/gi, '');
+    const [system, ...rest] = messages;
+
+    log('Using generateRaw fallback');
+    const result = await generateRaw({
+        systemPrompt: protect(system.content),
+        prompt: rest.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'system', content: protect(m.content) })),
+        responseLength: maxTokens || null,
+    });
+    return { text: result || '', truncated: false };
+}

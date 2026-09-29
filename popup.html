@@ -1,0 +1,925 @@
+<div id="persona-forge-popup" class="persona-forge-popup">
+    <div class="pf-container">
+
+        <header class="pf-header">
+            <div class="pf-title">
+                <i id="pf-title-hammer" class="fa-solid fa-hammer"></i>
+                <span class="pf-title-text">캐릭터 대장간</span>
+            </div>
+            <div class="pf-header-actions">
+                <div class="pf-mode-control" role="group" aria-label="만들 대상">
+                    <button type="button" data-forge-mode="persona" aria-pressed="true" title="내가 연기할 페르소나({{user}})를 만듭니다">페르소나</button>
+                    <button type="button" data-forge-mode="bot" aria-pressed="false" title="AI가 연기할 봇 캐릭터를 만듭니다">봇</button>
+                </div>
+                <div class="pf-more-wrap">
+                    <button id="pf-more-btn" class="pf-icon-btn" title="백업·초기화" aria-haspopup="menu" aria-expanded="false">
+                        <i class="fa-solid fa-ellipsis-vertical"></i>
+                    </button>
+                    <div id="pf-more-menu" class="pf-more-menu" role="menu" style="display: none;">
+                        <div class="pf-more-head">
+                            <div>기록 저장 위치</div>
+                            <div id="pf-more-storage" class="pf-more-sub"></div>
+                        </div>
+                        <button class="pf-more-item" data-action="export-backup" role="menuitem"><i class="fa-solid fa-file-export"></i> 전체 백업 내보내기</button>
+                        <button class="pf-more-item" data-action="import-backup" role="menuitem"><i class="fa-solid fa-file-import"></i> 전체 백업 가져오기</button>
+                        <button class="pf-more-item" data-action="export-history" role="menuitem"><i class="fa-solid fa-clock-rotate-left"></i> 기록 내보내기</button>
+                        <button class="pf-more-item" data-action="import-history" role="menuitem"><i class="fa-solid fa-file-arrow-up"></i> 기록 가져오기</button>
+                        <div class="pf-more-sep"></div>
+                        <button class="pf-more-item" data-action="reset-settings" role="menuitem"><i class="fa-solid fa-sliders"></i> 설정값 초기화</button>
+                        <button class="pf-more-item" data-action="reset-history" role="menuitem"><i class="fa-solid fa-clock-rotate-left"></i> 기록 초기화</button>
+                        <button class="pf-more-item pf-more-danger" data-action="reset-all" role="menuitem"><i class="fa-solid fa-rotate-left"></i> 전체 초기화</button>
+                    </div>
+                </div>
+                <button id="pf-close-btn" class="pf-icon-btn" title="닫기">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </header>
+
+        <nav class="pf-tab-bar" role="tablist">
+            <button class="pf-tab active" data-tab="settings" role="tab">
+                <span class="pf-tab-icon"><i class="fa-solid fa-sliders"></i></span>
+                <span class="pf-tab-label">설정</span>
+            </button>
+            <button class="pf-tab" data-tab="generate" role="tab">
+                <span class="pf-tab-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+                <span class="pf-tab-label">생성</span>
+                <span class="pf-tab-dot"></span>
+            </button>
+            <button class="pf-tab" data-tab="history" role="tab">
+                <span class="pf-tab-icon"><i class="fa-solid fa-clock-rotate-left"></i></span>
+                <span class="pf-tab-label">기록</span>
+            </button>
+            <button class="pf-tab" data-tab="prompt" role="tab">
+                <span class="pf-tab-icon"><i class="fa-solid fa-terminal"></i></span>
+                <span class="pf-tab-label">프롬프트</span>
+            </button>
+        </nav>
+
+        <div class="pf-body">
+
+            <button id="pf-busy-banner" class="pf-busy-banner" type="button" style="display: none;" title="생성 화면으로">
+                <span class="pf-busy-dot"></span>
+                <span class="pf-busy-text">생성 진행 중</span>
+                <span id="pf-busy-progress" class="pf-busy-progress"></span>
+                <span class="pf-busy-go">생성 화면 보기 <i class="fa-solid fa-chevron-right"></i></span>
+            </button>
+
+            <div class="pf-tab-content active" id="pf-settings-tab" data-tab="settings">
+
+                <section class="pf-group">
+                    <h5 class="pf-group-title">참고 자료</h5>
+                    <div class="pf-group-body">
+                        <div class="pf-row pf-row-stack">
+                            <span class="pf-row-icon"><i class="fa-solid fa-id-badge"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">
+                                    페르소나
+                                    <details class="pf-info">
+                                        <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
+                                        <div class="pf-info-bubble" data-pf-mode="bot">{{user}}로 등장할 내 페르소나의 설명을 참고합니다. 결과에는 이름 대신 {{user}}로 적힙니다.</div>
+                                        <div class="pf-info-bubble" data-pf-mode="persona">기존 페르소나를 바탕으로 만듭니다. 어떻게 쓸지(비슷한 새 페르소나, 설정 보강 등)는 컨셉에 적어 주십시오. 적지 않으면 기존 설정은 지키고 나머지를 채웁니다.</div>
+                                    </details>
+                                </span>
+                                <span id="pf-bot-persona-info" class="pf-row-desc"></span>
+                            </span>
+                            <span class="pf-row-ctrl">
+                                <select id="pf-bot-persona" class="pf-select">
+                                    <option value="">참고하지 않음</option>
+                                </select>
+                            </span>
+                        </div>
+                        <div id="pf-persona-manual-panel" class="pf-sub pf-manual-panel" style="display: none;">
+                            <input type="text" id="pf-persona-manual-name" class="pf-input" placeholder="페르소나 이름 (비워도 됩니다)">
+                            <textarea id="pf-persona-manual-desc" class="pf-textarea" rows="5"
+                                placeholder="참고할 페르소나 설명을 붙여 넣거나 직접 적어 주십시오..."></textarea>
+                        </div>
+
+                        <div class="pf-row pf-row-stack">
+                            <span class="pf-row-icon"><i class="fa-solid fa-user"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">
+                                    캐릭터
+                                    <details class="pf-info">
+                                        <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
+                                        <div class="pf-info-bubble" data-pf-mode="persona">롤플레이 상대가 될 캐릭터입니다. 이 캐릭터와 어울리는 {{user}} 페르소나를 만듭니다. "참고하지 않음"을 고르면 월드인포만 보고 만들고, "직접 입력"을 고르면 설정을 붙여 넣을 수 있습니다.</div>
+                                        <div class="pf-info-bubble" data-pf-mode="bot">새 캐릭터를 만들 때 참고할 카드입니다. 어떻게 쓸지(같은 세계의 새 인물, 얽힌 인물, 다인봇 등)는 컨셉에 적어 주십시오. "직접 입력"을 고르면 세계관이나 프로필을 붙여 넣을 수 있습니다.</div>
+                                    </details>
+                                </span>
+                            </span>
+                            <span class="pf-row-ctrl pf-char-pick">
+                                <input type="search" id="pf-char-search" class="pf-input" placeholder="캐릭터 이름 검색..." autocomplete="off">
+                                <div id="pf-char-results" class="pf-char-results" style="display: none;"></div>
+                                <select id="pf-char-select" class="pf-select">
+                                    <option value="-1">참고하지 않음</option>
+                                </select>
+                            </span>
+                        </div>
+
+                        <div id="pf-manual-panel" class="pf-sub pf-manual-panel" style="display: none;">
+                            <input type="text" id="pf-manual-name" class="pf-input" placeholder="캐릭터 이름 (비워도 됩니다)">
+                            <textarea id="pf-manual-desc" class="pf-textarea" rows="6"
+                                placeholder="기존 캐릭터의 설정을 붙여넣거나 직접 적어 주십시오...&#10;예: 외모, 성격, 말투, 세계관, {{user}}와의 관계 등"></textarea>
+                        </div>
+
+                        <div id="pf-card-fields" class="pf-sub pf-card-fields">
+                            <button id="pf-card-fields-toggle" class="pf-disclosure-btn" type="button">
+                                <i class="fa-solid fa-chevron-down"></i>
+                                <span>참고할 카드 항목</span>
+                                <span id="pf-card-fields-summary" class="pf-disclosure-summary"></span>
+                            </button>
+                            <div id="pf-card-fields-list" class="pf-card-fields-list" style="display: none;"></div>
+                        </div>
+
+                        <label id="pf-wi-row" class="pf-row">
+                            <span class="pf-row-icon"><i class="fa-solid fa-book"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">
+                                    월드인포
+                                    <details class="pf-info">
+                                        <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
+                                        <div class="pf-info-bubble" data-pf-mode="persona">캐릭터에 연결된 월드인포는 자동으로 선택됩니다. 상태창·출력 형식·규칙 항목은 결과를 흐트러뜨릴 수 있으니 빼 주십시오. 비밀이 담긴 항목을 빼면 스포일러를 더 확실히 막을 수 있습니다.</div>
+                                        <div class="pf-info-bubble" data-pf-mode="bot">참고할 캐릭터에 연결된 월드인포는 자동으로 선택됩니다. 상태창·출력 형식·규칙 항목은 결과를 흐트러뜨릴 수 있으니 빼 주십시오. 고른 항목은 그리팅을 만들 때도 함께 들어갑니다.</div>
+                                    </details>
+                                </span>
+                            </span>
+                            <span class="pf-row-ctrl"><input type="checkbox" id="pf-wi-toggle" class="pf-switch-input"></span>
+                        </label>
+                        <div id="pf-wi-container" class="pf-sub" style="display: none;">
+                            <div class="pf-wi-toolbar">
+                                <input type="search" id="pf-wi-search" class="pf-input" placeholder="월드인포·항목 검색...">
+                                <button id="pf-wi-reload" class="pf-btn pf-small-btn pf-icon-only" title="목록 새로 읽기">
+                                    <i class="fa-solid fa-rotate"></i>
+                                </button>
+                            </div>
+                            <div id="pf-wi-status" class="pf-wi-status" role="status"></div>
+                            <div id="pf-wi-books" class="pf-wi-books">
+                                <div class="pf-wi-empty">캐릭터를 먼저 선택하십시오.</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="pf-group">
+                    <h5 class="pf-group-title">만드는 방식</h5>
+                    <div class="pf-group-body">
+                        <label class="pf-row pf-choice">
+                            <input type="radio" name="pf-gen-mode" value="free" checked>
+                            <span class="pf-row-icon"><i class="fa-solid fa-dice"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">자유 생성</span>
+                                <span class="pf-row-desc">참고 자료만 보고 AI가 자유롭게 만듭니다</span>
+                            </span>
+                            <span class="pf-choice-mark"></span>
+                        </label>
+                        <label class="pf-row pf-choice">
+                            <input type="radio" name="pf-gen-mode" value="guided">
+                            <span class="pf-row-icon"><i class="fa-solid fa-feather-pointed"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">가이드 생성</span>
+                                <span class="pf-row-desc">내가 적은 컨셉에 맞춰 만듭니다</span>
+                            </span>
+                            <span class="pf-choice-mark"></span>
+                        </label>
+                        <div id="pf-guided-input" class="pf-sub" style="display: none;">
+                            <textarea id="pf-concept-text" class="pf-textarea" rows="4"
+                                placeholder="원하는 캐릭터 컨셉을 입력하십시오...&#10;예: 시골에서 올라온 순진한 대학생, 호기심이 많지만 세상물정을 잘 모르는 성격&#10;예: 쿨하고 무관심해 보이지만 속은 따뜻한 직장인"></textarea>
+                            <div class="pf-hint" data-pf-mode="bot">참고 자료와 다르면 컨셉을 우선합니다. 기존 캐릭터를 어떻게 쓸지(같은 세계의 새 인물, 얽힌 인물 등)도 여기에 적어 주십시오.</div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="pf-group">
+                    <h5 class="pf-group-title">프로필 형식</h5>
+                    <div class="pf-group-body">
+                        <label id="pf-setting-row" class="pf-row" data-pf-mode="bot">
+                            <span class="pf-row-icon"><i class="fa-solid fa-earth-asia"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">
+                                    세계관 설정
+                                    <details class="pf-info">
+                                        <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
+                                        <div class="pf-info-bubble">가이드 지시문·참고 자료(월드인포 등)에 세계관이 있으면 그걸 바탕으로 쓰고, 없는 부분은 새로 만듭니다.</div>
+                                    </details>
+                                </span>
+                                <span class="pf-row-desc">프로필에 세계관 설정을 포함</span>
+                            </span>
+                            <span class="pf-row-ctrl"><input type="checkbox" id="pf-setting-toggle" class="pf-switch-input"></span>
+                        </label>
+                        <div id="pf-setting-tags" class="pf-sub pf-field-tags" data-pf-mode="bot" style="display: none;"></div>
+                        <div id="pf-setting-panel" class="pf-sub" data-pf-mode="bot" data-set="setting" style="display: none;">
+                            <div class="pf-custom-panel-header">
+                                <span>포함할 항목</span>
+                                <div class="pf-custom-panel-actions">
+                                    <button class="pf-field-all pf-btn pf-small-btn" title="모든 항목 선택">전체 선택</button>
+                                    <button class="pf-field-none pf-btn pf-small-btn" title="모든 항목 해제">전체 해제</button>
+                                    <button class="pf-field-add pf-btn pf-small-btn" title="새 항목 추가">
+                                        <i class="fa-solid fa-plus"></i> 항목 추가
+                                    </button>
+                                    <button class="pf-field-reset pf-btn pf-small-btn pf-danger-btn" title="항목 수정·추가 초기화">
+                                        <i class="fa-solid fa-rotate-left"></i> 초기화
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="pf-setting-field-list"></div>
+                        </div>
+
+                        <div id="pf-template-row" class="pf-row pf-row-stack">
+                            <span class="pf-row-icon"><i class="fa-solid fa-file-lines"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">
+                                    캐릭터 설정
+                                    <details class="pf-info" data-pf-mode="bot">
+                                        <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
+                                        <div class="pf-info-bubble">끄고 세계관 설정만 켜면 캐릭터 프로필 없이 세계관만 만듭니다 (세계관 봇, 또는 참고한 캐릭터가 사는 세계).</div>
+                                    </details>
+                                </span>
+                                <span id="pf-template-desc" class="pf-row-desc"></span>
+                            </span>
+                            <input type="checkbox" id="pf-character-toggle" class="pf-switch-input pf-row-side-switch" data-pf-mode="bot" title="캐릭터 프로필 만들기">
+                            <span id="pf-template-ctrl" class="pf-row-ctrl">
+                                <select id="pf-template-select" class="pf-select">
+                                    <option value="basic">Basic (기본)</option>
+                                    <option value="standard" selected>Standard (표준)</option>
+                                    <option value="detailed">Detailed (상세)</option>
+                                    <option value="full">Full (전체)</option>
+                                    <option value="choice">Choice (선택)</option>
+                                    <option value="mirror">Mirror (기존 캐릭터 참고)</option>
+                                    <option value="custom">Custom (자유 입력)</option>
+                                </select>
+                            </span>
+                        </div>
+                        <div id="pf-template-fields" class="pf-sub pf-field-tags"></div>
+
+                        <div id="pf-custom-panel" class="pf-sub" data-set="profile" style="display: none;">
+                            <div class="pf-custom-panel-header">
+                                <span>포함할 항목</span>
+                                <div class="pf-custom-panel-actions">
+                                    <button class="pf-field-all pf-btn pf-small-btn" title="모든 항목 선택">전체 선택</button>
+                                    <button class="pf-field-none pf-btn pf-small-btn" title="모든 항목 해제">전체 해제</button>
+                                    <button class="pf-field-add pf-btn pf-small-btn" title="새 항목 추가">
+                                        <i class="fa-solid fa-plus"></i> 항목 추가
+                                    </button>
+                                    <button class="pf-field-reset pf-btn pf-small-btn pf-danger-btn" title="항목 수정·추가 초기화">
+                                        <i class="fa-solid fa-rotate-left"></i> 초기화
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="pf-custom-field-list"></div>
+                        </div>
+
+                        <div id="pf-sheet-panel" class="pf-sub" style="display: none;">
+                            <textarea id="pf-sheet-text" class="pf-textarea" rows="8"
+                                placeholder="여기에 프로필 시트 양식을 붙여 넣으십시오...&#10;&#10;예:&#10;【이름】&#10;【나이/성별】&#10;【외모】&#10;【성격】&#10;【배경】&#10;...&#10;&#10;어떤 양식이든 AI가 그대로 따릅니다."></textarea>
+                        </div>
+
+                        <div class="pf-row">
+                            <span class="pf-row-icon"><i class="fa-solid fa-globe"></i></span>
+                            <span class="pf-row-text"><span class="pf-row-title">출력 언어</span></span>
+                            <span class="pf-row-ctrl"><select id="pf-language" class="pf-select pf-language-select"></select></span>
+                        </div>
+
+                        <div class="pf-row">
+                            <span class="pf-row-icon"><i class="fa-solid fa-compress"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">
+                                    분량
+                                    <details class="pf-info">
+                                        <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
+                                        <div class="pf-info-bubble">밸런스형: 중복을 줄이고 중요한 정보 위주로 씁니다. / 압축형: 대부분 짧은 나열로 쓰고, 성격·동기 같은 핵심만 필요한 만큼 풀어 씁니다.</div>
+                                    </details>
+                                </span>
+                                <span id="pf-density-desc" class="pf-row-desc"></span>
+                            </span>
+                            <span class="pf-row-ctrl"><select id="pf-density" class="pf-select"></select></span>
+                        </div>
+
+
+                        <label class="pf-row" data-pf-mode="persona">
+                            <span class="pf-row-icon"><i class="fa-solid fa-user-secret"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">스포일러 방지</span>
+                                <span id="pf-spoiler-note" class="pf-row-desc" style="display: none;">기존 캐릭터의 비밀(반전·진짜 정체·숨겨진 과거)을 프로필에 직접적으로 드러내지 않도록 AI 요청에 주의 문구를 포함합니다. 창작의 자유도가 낮아질 수 있으며, 지시를 따르지 않을 가능성이 있습니다.</span>
+                            </span>
+                            <span class="pf-row-ctrl"><input type="checkbox" id="pf-spoiler-toggle" class="pf-switch-input"></span>
+                        </label>
+                    </div>
+                </section>
+
+                <section id="pf-direction-group" class="pf-group" data-pf-mode="bot">
+                    <h5 class="pf-group-title">설계 방향</h5>
+                    <div class="pf-group-body">
+                        <label class="pf-row pf-choice">
+                            <input type="radio" name="pf-bot-direction" value="relational" checked>
+                            <span class="pf-row-icon"><i class="fa-solid fa-link"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">관계 중심</span>
+                                <span class="pf-row-desc">{{user}}와의 관계를 축으로 설계 · 둘 사이의 긴장·호기심·케미가 이야기를 움직입니다</span>
+                            </span>
+                            <span class="pf-choice-mark"></span>
+                        </label>
+                        <label class="pf-row pf-choice">
+                            <input type="radio" name="pf-bot-direction" value="independent">
+                            <span class="pf-row-icon"><i class="fa-solid fa-user-astronaut"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">독립 인물</span>
+                                <span class="pf-row-desc">{{user}}보다 인물 자신의 삶·목표가 중심 · 관계는 유연하게 두어 어떤 {{user}}와도 어울립니다</span>
+                            </span>
+                            <span class="pf-choice-mark"></span>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="pf-group">
+                    <h5 class="pf-group-title">API 연결</h5>
+                    <div class="pf-group-body">
+                        <div class="pf-row pf-row-stack">
+                            <span class="pf-row-icon"><i class="fa-solid fa-plug"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">메인 연결 프로필</span>
+                                <span id="pf-conn-status" class="pf-row-desc" style="display: none;"></span>
+                            </span>
+                            <button id="pf-conn-test" class="pf-btn pf-small-btn pf-conn-test" type="button" title="짧은 요청 하나를 보내 응답이 오는지 확인합니다">
+                                <i class="fa-solid fa-plug-circle-check"></i> 연결 테스트
+                            </button>
+                            <span class="pf-row-ctrl">
+                                <select id="pf-api-profile" class="pf-select">
+                                    <option value="">현재 연결 사용</option>
+                                </select>
+                            </span>
+                        </div>
+                        <div class="pf-row pf-row-stack">
+                            <span class="pf-row-icon"><i class="fa-solid fa-comments"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">서포트 모루 연결 프로필</span>
+                                <span id="pf-supporter-conn-status" class="pf-row-desc" style="display: none;"></span>
+                            </span>
+                            <button id="pf-supporter-conn-test" class="pf-btn pf-small-btn pf-conn-test" type="button" title="짧은 요청 하나를 보내 응답이 오는지 확인합니다">
+                                <i class="fa-solid fa-plug-circle-check"></i> 연결 테스트
+                            </button>
+                            <span class="pf-row-ctrl">
+                                <select id="pf-supporter-profile" class="pf-select">
+                                    <option value="">메인 연결 프로필 그대로</option>
+                                </select>
+                            </span>
+                        </div>
+                        <div class="pf-row">
+                            <span class="pf-row-icon"><i class="fa-solid fa-ruler-horizontal"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">
+                                    <label for="pf-max-tokens">최대 출력 토큰</label>
+                                    <details class="pf-info">
+                                        <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
+                                        <div class="pf-info-bubble">0이면 연결 프로필의 응답 길이 설정을 따릅니다. 결과가 잘리지 않게 5천 이상을 권장하며, 선택한 항목에 따라 조절하십시오. 사고(thinking) 모델은 생각에 쓰는 토큰도 여기에 포함되므로, 본문이 잘리면 1만 이상으로 넉넉히 두십시오.</div>
+                                    </details>
+                                </span>
+                                <span id="pf-max-tokens-effective" class="pf-row-desc pf-effective-hint"></span>
+                            </span>
+                            <span class="pf-row-ctrl">
+                                <input type="number" id="pf-max-tokens" class="pf-input pf-input-number" min="0" max="200000" step="256" placeholder="0" inputmode="numeric">
+                            </span>
+                        </div>
+                        <label class="pf-row">
+                            <span class="pf-row-icon"><i class="fa-solid fa-water"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">
+                                    스트리밍으로 받기
+                                    <details class="pf-info">
+                                        <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
+                                        <div class="pf-info-bubble">결과를 조금씩 나눠 받아, 응답이 오래 걸릴 때 서버가 연결을 끊는 오류("&lt;none&gt;" 등)를 막습니다. 사고 모델은 답을 쓰기 전 한동안 "생각하는 중"으로 표시될 수 있습니다. 스트리밍을 지원하지 않는 API라면 꺼 주십시오.</div>
+                                    </details>
+                                </span>
+                                <span class="pf-row-desc">오래 걸리는 요청이 중간에 끊길 때 켜 주십시오</span>
+                            </span>
+                            <span class="pf-row-ctrl"><input type="checkbox" id="pf-stream-toggle" class="pf-switch-input"></span>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="pf-group">
+                    <h5 class="pf-group-title">저장</h5>
+                    <div class="pf-group-body">
+                        <label class="pf-row">
+                            <span class="pf-row-icon"><i class="fa-solid fa-floppy-disk"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">기록 자동 저장</span>
+                                <span class="pf-row-desc">생성·재생성·번역·수정 결과를 기록에 남깁니다 · 그리팅도 함께 저장됩니다</span>
+                            </span>
+                            <span class="pf-row-ctrl"><input type="checkbox" id="pf-autosave-toggle" class="pf-switch-input"></span>
+                        </label>
+                        <label class="pf-row">
+                            <span class="pf-row-icon"><i class="fa-solid fa-bell"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">완료 알림음</span>
+                                <span class="pf-row-desc">생성이 끝나면 짧은 소리로 알려 줍니다 · 다른 탭을 보고 있어도 들립니다</span>
+                            </span>
+                            <span class="pf-row-ctrl"><input type="checkbox" id="pf-sound-toggle" class="pf-switch-input"></span>
+                        </label>
+                    </div>
+                </section>
+
+                <div class="pf-generate-bar">
+                    <button id="pf-generate-btn" class="pf-primary-btn pf-generate-btn">
+                        <i class="fa-solid fa-hammer"></i>
+                        <span data-pf-mode="persona">페르소나 생성</span>
+                        <span id="pf-generate-bot-label" data-pf-mode="bot">캐릭터 생성</span>
+                    </button>
+                </div>
+
+            </div>
+
+            <div class="pf-tab-content" id="pf-generate-tab" data-tab="generate">
+
+                <div id="pf-gen-loading" class="pf-loading" style="display: none;">
+                    <div class="pf-forge-animation">
+                        <i class="fa-solid fa-hammer pf-forge-hammer"></i>
+                        <div class="pf-forge-anvil"></div>
+                    </div>
+                    <span id="pf-gen-loading-text">페르소나를 대장간에서 벼려내는 중...</span>
+                    <span id="pf-gen-progress" class="pf-gen-progress"></span>
+                    <button id="pf-cancel-gen-btn" class="pf-btn pf-small-btn pf-cancel-btn">
+                        <i class="fa-solid fa-xmark"></i> 생성 취소
+                    </button>
+                </div>
+
+                <div id="pf-gen-empty" class="pf-empty-state">
+                    <div class="pf-empty-icon"><i class="fa-solid fa-hammer"></i></div>
+                    <p class="pf-empty-title" data-pf-mode="persona">아직 생성된 페르소나가 없습니다</p>
+                    <p class="pf-text-muted" data-pf-mode="persona">설정 탭에서 캐릭터를 고르고 생성 버튼을 눌러 주십시오.</p>
+                    <p class="pf-empty-title" data-pf-mode="bot">아직 만든 봇 캐릭터가 없습니다</p>
+                    <p class="pf-text-muted" data-pf-mode="bot">설정 탭에서 설계 방향과 참고 자료를 고르고 생성 버튼을 눌러 주십시오.</p>
+                </div>
+
+                <div id="pf-gen-result" style="display: none;">
+
+                    <div class="pf-result-toolbar">
+                        <div class="pf-result-info">
+                            <span id="pf-result-char-name" class="pf-result-char"></span>
+                        </div>
+                        <div class="pf-result-actions">
+                            <button id="pf-edit-toggle-btn" class="pf-btn pf-small-btn" title="프로필 전체를 글로 편집">
+                                <i class="fa-solid fa-pen"></i> 전체 편집
+                            </button>
+                            <button id="pf-regen-all-btn" class="pf-btn pf-small-btn" title="전체 재생성">
+                                <i class="fa-solid fa-arrows-rotate"></i> 재생성
+                            </button>
+                            <button id="pf-translate-btn" class="pf-btn pf-small-btn" title="번역">
+                                <i class="fa-solid fa-language"></i> 번역
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="pf-result-badges">
+                        <span id="pf-result-kind" class="pf-badge"></span>
+                        <span id="pf-result-template" class="pf-result-badge"></span>
+                        <span id="pf-result-lang" class="pf-result-badge"></span>
+                        <span id="pf-result-tokens" class="pf-result-badge" title="프로필 토큰 수 (그리팅 제외) · 실리태번 토크나이저 기준"></span>
+                    </div>
+
+                    <details id="pf-result-concept" class="pf-result-concept" style="display: none;">
+                        <summary>
+                            <i class="fa-solid fa-feather-pointed"></i>
+                            <span class="pf-result-concept-label">가이드 컨셉</span>
+                            <span id="pf-result-concept-preview" class="pf-result-concept-preview"></span>
+                        </summary>
+                        <div id="pf-result-concept-text" class="pf-result-concept-text"></div>
+                    </details>
+
+                    <div id="pf-regen-all-panel" class="pf-inline-panel" style="display: none;">
+                        <textarea id="pf-regen-all-instructions" class="pf-textarea" rows="2"
+                            placeholder="새 지시사항 (선택)... 기존에 작성한 컨셉과 설정으로 처음부터 다시 만듭니다. 여기 적은 지시는 이번 재생성에만 추가 지시로 쓰입니다."></textarea>
+                        <div class="pf-inline-panel-actions">
+                            <button id="pf-regen-all-cancel" class="pf-btn pf-small-btn">취소</button>
+                            <button id="pf-regen-all-go" class="pf-primary-btn pf-small-btn">재생성</button>
+                        </div>
+                    </div>
+
+                    <div id="pf-translate-panel" class="pf-inline-panel" style="display: none;">
+                        <div class="pf-translate-row">
+                            <span class="pf-inline-label">
+                                번역 대상 언어
+                                <details class="pf-info">
+                                    <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
+                                    <div class="pf-info-bubble">한국어·일본어·중국어는 토큰을 더 많이 써서 번역이 잘릴 수 있습니다. 잘리면 설정 탭의 최대 출력 토큰을 늘려 주십시오.</div>
+                                </details>
+                            </span>
+                            <select id="pf-translate-lang" class="pf-select pf-select-small pf-language-select"></select>
+                            <button id="pf-translate-cancel" class="pf-btn pf-small-btn">취소</button>
+                            <button id="pf-translate-go" class="pf-primary-btn pf-small-btn">번역 실행</button>
+                        </div>
+                    </div>
+
+                    <div id="pf-incomplete-banner" class="pf-warning-banner" style="display: none;">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <div id="pf-incomplete-text" class="pf-warning-text"></div>
+                    </div>
+
+                    <div id="pf-sections-container"></div>
+
+                    <div id="pf-modify-section" class="pf-modify-section">
+                        <button id="pf-modify-toggle-btn" class="pf-btn pf-full-btn"><i class="fa-solid fa-pen-to-square"></i> 현재 프로필 기반 수정 지시</button>
+                        <div id="pf-modify-panel" class="pf-inline-panel" style="display: none;">
+                            <textarea id="pf-modify-instructions" class="pf-textarea" rows="3"
+                                placeholder="수정할 내용을 자유롭게 입력하십시오...&#10;예: 나머지는 그대로 두고 이름만 전부 A로 바꿔줘&#10;예: 성격을 좀 더 쿨하게 바꿔줘"></textarea>
+                            <div class="pf-inline-panel-actions">
+                                <button id="pf-modify-cancel" class="pf-btn pf-small-btn">취소</button>
+                                <button id="pf-modify-go" class="pf-primary-btn pf-small-btn">수정 실행</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="pf-edit-area" style="display: none;">
+                        <textarea id="pf-edit-textarea" class="pf-textarea" rows="20"></textarea>
+                        <div class="pf-inline-panel-actions">
+                            <button id="pf-edit-apply" class="pf-primary-btn pf-small-btn"><i class="fa-solid fa-check"></i> 편집 적용</button>
+                        </div>
+                    </div>
+
+                    <div id="pf-greeting-section" class="pf-greeting-section" data-pf-gen-mode="bot">
+                        <div class="pf-result-toolbar pf-greeting-toolbar">
+                            <div class="pf-result-info">
+                                <span class="pf-result-char"><i class="fa-regular fa-comment-dots"></i> 그리팅</span>
+                                <details class="pf-info">
+                                    <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
+                                    <div class="pf-info-bubble">흥미를 끄는 장면으로 시작하는 그리팅을 만듭니다. 재생성·수정·번역한 결과는 버전으로 쌓여 ‹ › 로 넘겨 볼 수 있고, 지금 보고 있는 버전이 카드 저장·복사에 쓰입니다.</div>
+                                </details>
+                            </div>
+                            <div class="pf-result-actions">
+                                <button id="pf-greeting-edit" class="pf-btn pf-small-btn" title="그리팅 전체를 글로 편집" style="display: none;">
+                                    <i class="fa-solid fa-pen"></i> 전체 편집
+                                </button>
+                                <button id="pf-greeting-toggle-btn" class="pf-btn pf-small-btn" title="그리팅 만들기">
+                                    <i class="fa-solid fa-feather"></i> <span>생성</span>
+                                </button>
+                                <button id="pf-greeting-translate-btn" class="pf-btn pf-small-btn" title="그리팅 번역" style="display: none;">
+                                    <i class="fa-solid fa-language"></i> 번역
+                                </button>
+                            </div>
+                        </div>
+                        <div id="pf-greeting-badges" class="pf-result-badges" style="display: none;">
+                            <span id="pf-greeting-meta" class="pf-result-badge"></span>
+                            <span id="pf-greeting-tokens" class="pf-result-badge" title="그리팅 토큰 수 · 실리태번 토크나이저 기준"></span>
+                        </div>
+                        <div id="pf-greeting-panel" class="pf-inline-panel" style="display: none;">
+                            <div class="pf-option-row">
+                                <span class="pf-option-label">길이</span>
+                                <div class="pf-pill-group">
+                                    <label class="pf-pill"><input type="radio" name="pf-greeting-length" value="short"><span>짧게 · 4–5문단</span></label>
+                                    <label class="pf-pill"><input type="radio" name="pf-greeting-length" value="medium"><span>보통 · 6–7문단</span></label>
+                                    <label class="pf-pill"><input type="radio" name="pf-greeting-length" value="long"><span>길게 · 8–10문단</span></label>
+                                    <label class="pf-pill"><input type="radio" name="pf-greeting-length" value="custom"><span>직접 입력</span></label>
+                                </div>
+                                <input type="text" id="pf-greeting-length-custom" class="pf-input pf-greeting-length-custom" style="display: none;"
+                                    placeholder="예: 3문단, 800자 안팎 / 대사 위주로 짧게 2문단">
+                            </div>
+                            <div class="pf-option-row">
+                                <span class="pf-option-label">시점</span>
+                                <div class="pf-pill-group">
+                                    <label class="pf-pill"><input type="radio" name="pf-greeting-pov" value="third"><span>전지적 3인칭</span></label>
+                                    <label class="pf-pill"><input type="radio" name="pf-greeting-pov" value="second"><span>2인칭 ({{user}} = 당신)</span></label>
+                                </div>
+                            </div>
+                            <div class="pf-option-row">
+                                <span class="pf-option-label">언어</span>
+                                <select id="pf-greeting-lang" class="pf-select pf-select-small pf-language-select"></select>
+                            </div>
+                            <textarea id="pf-greeting-concept" class="pf-textarea" rows="3"
+                                placeholder="장면 컨셉·지시 (선택) — 비워 두면 프로필을 바탕으로 자유롭게 만듭니다.&#10;예: 비 오는 밤, 문 닫을 시간이 지난 가게에 {{user}}가 뛰어든다&#10;예: 첫 만남이 아니라 이미 몇 년째 앙숙인 사이에서 시작"></textarea>
+                            <div class="pf-inline-panel-actions">
+                                <button id="pf-greeting-cancel" class="pf-btn pf-small-btn">닫기</button>
+                                <button id="pf-greeting-go" class="pf-primary-btn pf-small-btn">만들기</button>
+                            </div>
+                        </div>
+                        <div id="pf-greeting-translate-panel" class="pf-inline-panel" style="display: none;">
+                            <div class="pf-translate-row">
+                                <span class="pf-inline-label">번역 대상 언어</span>
+                                <select id="pf-greeting-translate-lang" class="pf-select pf-select-small pf-language-select"></select>
+                                <button id="pf-greeting-translate-cancel" class="pf-btn pf-small-btn">취소</button>
+                                <button id="pf-greeting-translate-go" class="pf-primary-btn pf-small-btn">번역 실행</button>
+                            </div>
+                        </div>
+                        <div id="pf-greeting-loading" class="pf-greeting-loading" style="display: none;">
+                            <div class="pf-spinner pf-spinner-small"></div>
+                            <span class="pf-greeting-loading-info">
+                                <span id="pf-greeting-loading-text">첫 장면의 막을 올리는 중...</span>
+                                <span id="pf-greeting-progress" class="pf-gen-progress"></span>
+                            </span>
+                            <button id="pf-greeting-stop" class="pf-btn pf-small-btn pf-cancel-btn"><i class="fa-solid fa-xmark"></i> 취소</button>
+                        </div>
+                        <div id="pf-greeting-card" class="pf-section-card pf-greeting-card" style="display: none;">
+                            <div class="pf-section-card-header">
+                                <span id="pf-greeting-pager" class="pf-greeting-pager" style="display: none;">
+                                    <button id="pf-greeting-prev" class="pf-section-edit-btn" title="이전 버전"><i class="fa-solid fa-chevron-left"></i></button>
+                                    <span id="pf-greeting-count" class="pf-greeting-count"></span>
+                                    <button id="pf-greeting-next" class="pf-section-edit-btn" title="다음 버전"><i class="fa-solid fa-chevron-right"></i></button>
+                                </span>
+                                <span class="pf-section-label"></span>
+                                <button id="pf-greeting-copy" class="pf-section-edit-btn" title="이 버전 복사"><i class="fa-regular fa-copy"></i></button>
+                                <button id="pf-greeting-delete" class="pf-section-edit-btn" title="이 버전 지우기"><i class="fa-solid fa-trash-can"></i></button>
+                            </div>
+                            <div id="pf-greeting-body" class="pf-section-card-body pf-greeting-body"></div>
+                            <div id="pf-greeting-edit-panel" class="pf-section-edit-panel" style="display: none;">
+                                <textarea id="pf-greeting-edit-text" class="pf-section-edit-textarea pf-textarea" rows="10"></textarea>
+                                <div class="pf-section-edit-actions">
+                                    <button id="pf-greeting-edit-cancel" class="pf-btn pf-small-btn">취소</button>
+                                    <button id="pf-greeting-edit-save" class="pf-primary-btn pf-small-btn"><i class="fa-solid fa-check"></i> 저장</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="pf-greeting-modify" class="pf-greeting-modify" style="display: none;">
+                            <button id="pf-greeting-modify-toggle-btn" class="pf-btn pf-full-btn"><i class="fa-solid fa-pen-to-square"></i> 현재 그리팅 기반 수정 지시</button>
+                            <div id="pf-greeting-modify-panel" class="pf-inline-panel" style="display: none;">
+                                <textarea id="pf-greeting-modify-instructions" class="pf-textarea" rows="3"
+                                    placeholder="고칠 내용을 자유롭게 입력하십시오...&#10;예: 마지막 문단만 더 긴장감 있게 바꿔줘&#10;예: 대사를 반말로 바꾸고, 나머지는 그대로 둬"></textarea>
+                                <div class="pf-inline-panel-actions">
+                                    <button id="pf-greeting-modify-cancel" class="pf-btn pf-small-btn">취소</button>
+                                    <button id="pf-greeting-modify-go" class="pf-primary-btn pf-small-btn">수정 실행</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pf-bottom-bar">
+                        <button id="pf-copy-btn" class="pf-btn">
+                            <i class="fa-regular fa-copy"></i> 복사
+                        </button>
+                        <button id="pf-save-history-btn" class="pf-btn">
+                            <i class="fa-solid fa-bookmark"></i> 기록에 저장
+                        </button>
+                        <button id="pf-apply-persona-btn" class="pf-btn pf-accent-btn" data-pf-gen-mode="persona">
+                            <i class="fa-solid fa-floppy-disk"></i> 새 페르소나로 저장
+                        </button>
+                        <button id="pf-create-card-btn" class="pf-btn pf-accent-btn" data-pf-gen-mode="bot">
+                            <i class="fa-solid fa-address-card"></i> 새 캐릭터 카드로 저장
+                        </button>
+                    </div>
+
+                    <section id="pf-support" class="pf-support">
+                        <!-- 머리줄: 누르면 펼치기/접기, 펼쳤을 때만 오른쪽에 대화 설정·지우기 -->
+                        <div class="pf-support-head">
+                            <button id="pf-support-toggle" class="pf-support-head-main" type="button" aria-expanded="false">
+                                <span class="pf-support-avatar" aria-hidden="true"><i class="fa-solid fa-hammer"></i></span>
+                                <span class="pf-support-heading">
+                                    <span id="pf-support-title" class="pf-support-title">모루윈과 이야기하기</span>
+                                    <span class="pf-support-sub">이 결과를 두고 아이디어를 나누고, 고칠 곳을 상의합니다</span>
+                                </span>
+                            </button>
+                            <span class="pf-support-tools">
+                                <button id="pf-support-settings-btn" class="pf-section-edit-btn" type="button" title="대화 설정"><i class="fa-solid fa-gear"></i></button>
+                                <button id="pf-support-clear" class="pf-section-edit-btn" type="button" title="대화 지우기"><i class="fa-solid fa-broom"></i></button>
+                            </span>
+                            <button class="pf-support-chevron-btn" type="button" title="펼치기/접기"><i class="fa-solid fa-chevron-down pf-support-chevron"></i></button>
+                        </div>
+                        <div id="pf-support-body" class="pf-support-body" style="display: none;">
+                            <div id="pf-support-settings" class="pf-support-settings" style="display: none;">
+                                <label class="pf-support-setting">
+                                    <span>나를 부를 이름</span>
+                                    <input type="text" id="pf-support-username" class="pf-input" placeholder="비워 두면 작가님">
+                                </label>
+                                <div class="pf-support-setting">
+                                    <span>대화 상대 (이 대화)</span>
+                                    <div class="pf-pill-group">
+                                        <label class="pf-pill"><input type="radio" name="pf-supporter-gender" value="female"><span class="pf-supporter-pill" data-gender="female">모루윈 (여성)</span></label>
+                                        <label class="pf-pill"><input type="radio" name="pf-supporter-gender" value="male"><span class="pf-supporter-pill" data-gender="male">모루안 (남성)</span></label>
+                                    </div>
+                                </div>
+                                <div class="pf-support-setting pf-support-setting-top">
+                                    <span>프로필 이미지</span>
+                                    <div class="pf-support-faces-wrap">
+                                        <div id="pf-support-faces" class="pf-support-faces"></div>
+                                        <span class="pf-support-faces-note">칸을 눌러 내 이미지로 바꿉니다. 성별마다 따로 저장되며, 일부 표정만 올리면 나머지는 내가 올린 '기본' 표정으로 보입니다. 정사각형이 아니면 위쪽 기준으로 잘립니다.</span>
+                                    </div>
+                                    <input type="file" id="pf-support-avatar-file" accept="image/*" hidden>
+                                </div>
+                            </div>
+                            <div id="pf-support-log" class="pf-support-log" aria-live="polite"></div>
+                            <div class="pf-support-input">
+                                <textarea id="pf-support-text" class="pf-textarea" rows="1" placeholder="메시지 입력... (Enter 보내기 · Shift+Enter 줄바꿈)"></textarea>
+                                <button id="pf-support-send" class="pf-primary-btn pf-support-send" type="button" title="보내기"><i class="fa-solid fa-paper-plane"></i></button>
+                            </div>
+                        </div>
+                    </section>
+
+                </div>
+            </div>
+
+            <div class="pf-tab-content" id="pf-history-tab" data-tab="history">
+                <div id="pf-forge-rank" class="pf-forge-rank" data-level="0">
+                    <i class="fa-solid fa-award"></i>
+                    <span id="pf-forge-rank-name" class="pf-forge-rank-name">견습 대장장이</span>
+                    <span id="pf-forge-rank-count" class="pf-forge-rank-count"></span>
+                </div>
+                <div class="pf-history-filter-bar">
+                    <div class="pf-history-search-row">
+                        <div class="pf-search-wrap">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="pf-history-search" class="pf-input" placeholder="이름 또는 캐릭터명 검색...">
+                        </div>
+                        <button id="pf-history-add" class="pf-btn" title="직접 작성한 프로필을 기록에 추가 (번역·수정 기능을 쓸 수 있습니다)">
+                            <i class="fa-solid fa-plus"></i> 직접 추가
+                        </button>
+                    </div>
+                    <div id="pf-history-add-panel" class="pf-inline-panel" style="display: none;">
+                        <input type="text" id="pf-history-add-name" class="pf-input" placeholder="이름 (비우면 프로필의 이름 항목에서 찾습니다)">
+                        <div class="pf-translate-row">
+                            <span class="pf-inline-label">종류</span>
+                            <select id="pf-history-add-mode" class="pf-select pf-select-small">
+                                <option value="persona">페르소나</option>
+                                <option value="bot">봇</option>
+                            </select>
+                            <span class="pf-inline-label">언어</span>
+                            <select id="pf-history-add-lang" class="pf-select pf-select-small pf-language-select"></select>
+                        </div>
+                        <textarea id="pf-history-add-text" class="pf-textarea" rows="8"
+                            placeholder="저장할 프로필을 붙여 넣으십시오...&#10;## 헤더가 있으면 섹션별로 나뉘고, 없으면 한 덩어리로 보입니다."></textarea>
+                        <div class="pf-inline-panel-actions">
+                            <button id="pf-history-add-cancel" class="pf-btn pf-small-btn">취소</button>
+                            <button id="pf-history-add-save" class="pf-primary-btn pf-small-btn"><i class="fa-solid fa-check"></i> 저장</button>
+                        </div>
+                    </div>
+                    <div class="pf-history-filters">
+                        <select id="pf-history-filter-mode" class="pf-select pf-select-small">
+                            <option value="">모든 종류</option>
+                            <option value="persona">페르소나</option>
+                            <option value="bot">봇</option>
+                            <option value="favorite">★ 즐겨찾기</option>
+                        </select>
+                        <select id="pf-history-filter-lang" class="pf-select pf-select-small"></select>
+                        <select id="pf-history-filter-template" class="pf-select pf-select-small">
+                            <option value="">모든 템플릿</option>
+                            <option value="basic">Basic</option>
+                            <option value="standard">Standard</option>
+                            <option value="detailed">Detailed</option>
+                            <option value="full">Full</option>
+                            <option value="choice">Choice</option>
+                            <option value="mirror">Mirror</option>
+                            <option value="custom">Custom</option>
+                            <option value="world">세계관만</option>
+                            <option value="manual">직접 추가</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="pf-history-controls" class="pf-history-controls" style="display: none;">
+                    <span id="pf-history-count" class="pf-history-count"></span>
+                    <div class="pf-history-controls-row pf-history-normal">
+                        <button id="pf-history-select-toggle" class="pf-btn pf-small-btn" title="여러 기록을 골라서 삭제">
+                            <i class="fa-regular fa-square-check"></i> 선택 삭제
+                        </button>
+                        <button id="pf-history-clear" class="pf-btn pf-small-btn pf-danger-btn">
+                            <i class="fa-solid fa-trash-can"></i> 전체 삭제
+                        </button>
+                    </div>
+                    <div class="pf-history-controls-row pf-history-selecting">
+                        <button id="pf-history-select-all" class="pf-btn pf-small-btn">전체 선택</button>
+                        <button id="pf-history-delete-selected" class="pf-btn pf-small-btn pf-danger-btn" disabled>
+                            <i class="fa-solid fa-trash-can"></i> <span>선택 삭제</span>
+                        </button>
+                        <button id="pf-history-select-cancel" class="pf-btn pf-small-btn">취소</button>
+                    </div>
+                </div>
+                <div id="pf-history-empty" class="pf-empty-state">
+                    <div class="pf-empty-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                    <p>저장된 기록이 없습니다.</p>
+                </div>
+                <div id="pf-history-list" class="pf-list" style="display: none;"></div>
+                <div id="pf-history-pager" class="pf-history-pager" style="display: none;">
+                    <button id="pf-history-prev" class="pf-btn pf-small-btn" title="이전 페이지"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span id="pf-history-page" class="pf-history-page"></span>
+                    <button id="pf-history-next" class="pf-btn pf-small-btn" title="다음 페이지"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+            </div>
+
+            <div class="pf-tab-content" id="pf-prompt-tab" data-tab="prompt">
+                <section class="pf-group">
+                    <h5 class="pf-group-title">프롬프트 편집</h5>
+                    <div class="pf-group-body pf-group-pad">
+                        <div class="pf-prompt-scope" role="tablist">
+                            <button class="pf-prompt-scope-btn" type="button" data-scope="persona">페르소나</button>
+                            <button class="pf-prompt-scope-btn" type="button" data-scope="bot">봇</button>
+                            <button class="pf-prompt-scope-btn" type="button" data-scope="supporter">서포터</button>
+                        </div>
+                        <select id="pf-prompt-slot" class="pf-select"></select>
+                        <p id="pf-prompt-slot-hint" class="pf-hint"></p>
+                        <textarea id="pf-prompt-editor" class="pf-textarea pf-code" rows="14"
+                            placeholder="비워 두면 이 블록을 넣지 않습니다..."></textarea>
+                        <div class="pf-prompt-actions">
+                            <span id="pf-prompt-status" class="pf-prompt-status"></span>
+                            <button id="pf-prompt-reset" class="pf-btn pf-small-btn" title="이 프롬프트를 기본값으로 복원">
+                                <i class="fa-solid fa-rotate-left"></i> 기본값 복원
+                            </button>
+                            <button id="pf-prompt-apply" class="pf-primary-btn pf-small-btn" title="편집한 내용 적용">
+                                <i class="fa-solid fa-check"></i> 적용
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="pf-group">
+                    <h5 class="pf-group-title">
+                        프롬프트 프리셋
+                        <details class="pf-info">
+                            <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
+                            <div class="pf-info-bubble">수정한 모든 프롬프트를 한 묶음으로 저장·불러옵니다. 불러오면 바로 적용됩니다.</div>
+                        </details>
+                    </h5>
+                    <div class="pf-group-body pf-group-pad">
+                        <div class="pf-prompt-preset-row">
+                            <select id="pf-prompt-preset-select" class="pf-select">
+                                <option value="">프리셋을 선택하십시오...</option>
+                            </select>
+                            <button id="pf-prompt-preset-load" class="pf-btn pf-small-btn pf-icon-only" title="선택한 프리셋 불러오기">
+                                <i class="fa-solid fa-download"></i>
+                            </button>
+                            <button id="pf-prompt-preset-delete" class="pf-btn pf-small-btn pf-icon-only pf-danger-btn" title="선택한 프리셋 삭제">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                        <div class="pf-prompt-preset-row">
+                            <input type="text" id="pf-prompt-preset-name" class="pf-input" placeholder="프리셋 이름...">
+                            <button id="pf-prompt-preset-save" class="pf-primary-btn pf-small-btn" title="현재 프롬프트를 프리셋으로 저장">
+                                <i class="fa-solid fa-floppy-disk"></i> 저장
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="pf-legacy-section" class="pf-group" style="display: none;">
+                    <h5 class="pf-group-title">
+                        이전 버전 프롬프트 보관함
+                        <details class="pf-info">
+                            <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
+                            <div class="pf-info-bubble">예전 구조에서 수정했던 프롬프트와 프리셋입니다. 지금은 적용되지 않으며, 필요한 문장만 복사해 옮겨 쓸 수 있습니다.</div>
+                        </details>
+                    </h5>
+                    <div class="pf-group-body pf-group-pad">
+                        <div class="pf-prompt-preset-row">
+                            <select id="pf-legacy-select" class="pf-select"></select>
+                            <button id="pf-legacy-copy" class="pf-btn pf-small-btn pf-icon-only" title="복사">
+                                <i class="fa-regular fa-copy"></i>
+                            </button>
+                            <button id="pf-legacy-delete" class="pf-btn pf-small-btn pf-icon-only pf-danger-btn" title="보관함에서 삭제">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                        <textarea id="pf-legacy-text" class="pf-textarea pf-code" rows="8" readonly></textarea>
+                    </div>
+                </section>
+
+                <section class="pf-group">
+                    <h5 class="pf-group-title">
+                        요청 미리보기
+                        <details class="pf-info">
+                            <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
+                            <div class="pf-info-bubble">지금 설정으로 실제 전송될 문장을 그대로 보여 줍니다. 미리보기는 API 요청을 보내지 않습니다.</div>
+                        </details>
+                    </h5>
+                    <div class="pf-group-body pf-group-pad">
+                        <div class="pf-prompt-preset-row">
+                            <select id="pf-preview-kind" class="pf-select">
+                                <option value="generate">생성 (설정 탭 기준)</option>
+                                <option value="regen">섹션 재생성</option>
+                                <option value="translate">번역</option>
+                                <option value="modify">전체 수정</option>
+                                <option value="greeting">그리팅 (봇)</option>
+                                <option value="greetingModify">그리팅 수정 (봇)</option>
+                                <option value="support">서포터 대화</option>
+                                <option value="last">마지막으로 보낸 요청</option>
+                            </select>
+                            <button id="pf-preview-btn" class="pf-btn pf-small-btn">
+                                <i class="fa-solid fa-eye"></i> 보기
+                            </button>
+                            <button id="pf-preview-close" class="pf-btn pf-small-btn" style="display: none;" title="미리보기 닫기">
+                                <i class="fa-solid fa-xmark"></i> 닫기
+                            </button>
+                        </div>
+                        <div id="pf-preview-output" class="pf-preview-output"></div>
+                    </div>
+                </section>
+
+                <details id="pf-structure" class="pf-structure">
+                    <summary class="pf-structure-summary">
+                        <span class="pf-row-icon"><i class="fa-solid fa-sitemap"></i></span>
+                        <span class="pf-structure-summary-text">
+                            <span class="pf-row-title">프롬프트 구조 안내</span>
+                            <span class="pf-row-desc">요청이 어떤 순서로 조립되는지, 지금 설정에서 어떤 블록이 들어가는지</span>
+                        </span>
+                        <i class="fa-solid fa-chevron-down pf-structure-chevron"></i>
+                    </summary>
+                    <div class="pf-structure-body">
+                        <select id="pf-structure-kind" class="pf-select">
+                            <option value="generate">생성 (설정 탭 기준)</option>
+                            <option value="regen">섹션 재생성</option>
+                            <option value="modify">전체 수정</option>
+                            <option value="translate">번역</option>
+                            <option value="greeting">그리팅 (봇)</option>
+                            <option value="greetingModify">그리팅 수정 (봇)</option>
+                        </select>
+                        <ol id="pf-structure-list" class="pf-structure-list"></ol>
+                    </div>
+                </details>
+            </div>
+
+        </div>
+    </div>
+</div>
