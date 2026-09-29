@@ -64,6 +64,7 @@ function migrateSettings(settings) {
     if (!DENSITY_LEVELS[settings.density]) settings.density = 'default';
     if (!FONT_SCALES[settings.uiFontSize]) settings.uiFontSize = 'medium';
     if (!FONT_SCALES[settings.chatFontSize]) settings.chatFontSize = 'medium';
+    if (!['pretendard', 'theme'].includes(settings.uiFontFamily)) settings.uiFontFamily = 'pretendard';
     // 세계관 항목: 기본 항목 또는 직접 추가한 항목만 (고른 순서 유지)
     if (!settings.settingFieldDefinitions || typeof settings.settingFieldDefinitions !== 'object') settings.settingFieldDefinitions = {};
     settings.settingFields = [...new Set(Array.isArray(settings.settingFields) ? settings.settingFields : [])]

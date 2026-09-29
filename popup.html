@@ -38,6 +38,9 @@
                                 class="fa-solid fa-clock-rotate-left"></i> 기록 초기화</button>
                         <button class="pf-more-item pf-more-danger" data-action="reset-all" role="menuitem"><i
                                 class="fa-solid fa-rotate-left"></i> 전체 초기화</button>
+                        <div class="pf-more-sep"></div>
+                        <button class="pf-more-item" data-action="update-notes" role="menuitem"><i
+                                class="fa-solid fa-bullhorn"></i> 업데이트 내역</button>
                     </div>
                 </div>
                 <button id="pf-close-btn" class="pf-icon-btn" title="닫기">
@@ -499,6 +502,21 @@
                                             value="medium"><span>보통</span></label>
                                     <label class="pf-pill"><input type="radio" name="pf-chat-font"
                                             value="large"><span>크게</span></label>
+                                </span>
+                            </span>
+                        </div>
+                        <div class="pf-row">
+                            <span class="pf-row-icon"><i class="fa-solid fa-font"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">글꼴</span>
+                                <span class="pf-row-desc">확장 글꼴(Pretendard) 또는 테마 글꼴</span>
+                            </span>
+                            <span class="pf-row-ctrl">
+                                <span class="pf-pill-group">
+                                    <label class="pf-pill"><input type="radio" name="pf-ui-font-family"
+                                            value="pretendard"><span>확장 글꼴</span></label>
+                                    <label class="pf-pill"><input type="radio" name="pf-ui-font-family"
+                                            value="theme"><span>테마 글꼴</span></label>
                                 </span>
                             </span>
                         </div>

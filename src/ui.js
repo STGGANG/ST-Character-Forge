@@ -174,9 +174,11 @@ function noticeAvatarHtml(gender, face) {
 
 // 대장간 창을 열 때 — 이 버전의 안내에서 "확인"을 누른 적이 없으면 띄움
 // (확인을 눌러야만 본 것으로 기록 → 안 누르고 새로고침하면 다음에 열 때 다시)
-function showUpdateNoticeOnce() {
+// force: ⋮ 메뉴의 "업데이트 내역"으로 다시 볼 때 (이미 확인했어도 띄움)
+function showUpdateNoticeOnce({ force = false } = {}) {
     const settings = getSettings();
-    if (!settings || settings.lastSeenVersion === EXTENSION_VERSION || $('.pf-update-notice').length) return;
+    if (!settings || $('.pf-update-notice').length) return;
+    if (!force && settings.lastSeenVersion === EXTENSION_VERSION) return;
     const line = (gender, face, text) => `
         <div class="pf-support-msg pf-support-theirs">
             <span class="pf-support-avatar pf-support-avatar-chat" aria-hidden="true">${noticeAvatarHtml(gender, face)}</span>
@@ -205,6 +207,7 @@ function showUpdateNoticeOnce() {
         updateSetting('lastSeenVersion', EXTENSION_VERSION);
         $notice.remove();
     });
+    if (settings.uiFontFamily === 'theme') $notice[0].style.setProperty('--pf-font', THEME_FONT);
     $('body').append($notice);
 }
 
@@ -361,6 +364,10 @@ export function bindUIEvents() {
     });
     $root.on('change', 'input[name="pf-chat-font"]', function () {
         updateSetting('chatFontSize', FONT_SCALES[$(this).val()] ? $(this).val() : 'medium');
+        applyFontScale();
+    });
+    $root.on('change', 'input[name="pf-ui-font-family"]', function () {
+        updateSetting('uiFontFamily', $(this).val() === 'theme' ? 'theme' : 'pretendard');
         applyFontScale();
     });
     $root.on('click', '#pf-supporter-conn-test', () => onConnectionTest('supporter'));
@@ -910,6 +917,8 @@ function updateBotPersonaInfo() {
 
 const updateBotPersonaInfoSoon = debounce(updateBotPersonaInfo, 400);
 
+const THEME_FONT = 'var(--mainFontFamily, sans-serif)';
+
 // 글자 크기 — 창 전체·모루 남매 대화 배율을 CSS 변수로 (창 안의 크기는 모두 em이라 배율만 바꾸면 됨)
 function applyFontScale() {
     const settings = getSettings();
@@ -917,6 +926,10 @@ function applyFontScale() {
     if (!root || !settings) return;
     root.style.setProperty('--pf-ui-scale', String(FONT_SCALES[settings.uiFontSize]?.ui ?? 1));
     root.style.setProperty('--pf-chat-scale', String(FONT_SCALES[settings.chatFontSize]?.chat ?? 1));
+    // 글꼴: 실리태번 테마 글꼴을 고르면 확장 글꼴 대신 테마 글꼴 변수를 씀
+    if (settings.uiFontFamily === 'theme') root.style.setProperty('--pf-font', THEME_FONT);
+    else root.style.removeProperty('--pf-font');
+    $(`input[name="pf-ui-font-family"][value="${settings.uiFontFamily}"]`).prop('checked', true);
     $(`input[name="pf-ui-font"][value="${settings.uiFontSize}"]`).prop('checked', true);
     $(`input[name="pf-chat-font"][value="${settings.chatFontSize}"]`).prop('checked', true);
 }
@@ -2106,7 +2119,8 @@ function stopLoadingText(timer = loadingTextTimer) {
 function showGenerateLoading(show, kind = null) {
     $('#pf-gen-loading').toggle(show);
     $('#pf-gen-empty').toggle(!show && !state.currentGeneration);
-    $('#pf-gen-result').toggle(!show && !!state.currentGeneration);
+    // jQuery toggle 대신 직접 — 보일 때 인라인 값을 비워 CSS(flex)가 그대로 적용되게
+    $('#pf-gen-result').css('display', !show && state.currentGeneration ? '' : 'none');
     $('#pf-generate-btn').prop('disabled', show);
 
     if (show) {
@@ -2166,7 +2180,7 @@ function renderGenerationResult(data) {
 
     showGenerateLoading(false);
     $('#pf-gen-empty').hide();
-    $('#pf-gen-result').show();
+    $('#pf-gen-result').css('display', '');
 
     const langLabel = LANGUAGES[data.language]?.label || data.language;
     let templateLabel;
@@ -4716,7 +4730,7 @@ const RESETTABLE_LABELS = {
     includeWorldInfo: '월드인포 켜기', cardFields: '참고할 카드 항목', autoSaveHistory: '기록 자동 저장',
     spoilerProtection: '스포일러 방지', density: '분량', completionSound: '완료 알림음', includeSetting: '세계관 설정 켜기', includeCharacter: '캐릭터 설정 켜기', settingFields: '세계관 항목 선택·순서',
     supporterProfile: '대화형 서포터 연결 프로필', supporterGender: '대화 상대 기본값', supporterUserName: '나를 부를 이름',
-    supporterUserGender: '내 성별', supporterUserIntro: '자기소개', uiFontSize: '글자 크기', chatFontSize: '대화 글자 크기',
+    supporterUserGender: '내 성별', supporterUserIntro: '자기소개', uiFontSize: '글자 크기', chatFontSize: '대화 글자 크기', uiFontFamily: '글꼴',
 };
 
 // 실리태번 확인 대화상자 (없으면 브라우저 기본 확인창)
@@ -4830,6 +4844,10 @@ async function onMoreMenuAction() {
     const action = $(this).attr('data-action');
     closeMoreMenu();
 
+    if (action === 'update-notes') {
+        showUpdateNoticeOnce({ force: true });
+        return;
+    }
     if (action === 'export-backup') {
         await exportFullBackup();
         return;

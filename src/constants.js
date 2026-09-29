@@ -273,6 +273,8 @@ export const defaultSettings = {
     // 글자 크기 (small | medium | large) — 대장간 창 전체 / 모루 남매 대화
     uiFontSize: 'medium',
     chatFontSize: 'medium',
+    // 글꼴 (pretendard: 확장 글꼴 | theme: 실리태번 테마 글꼴)
+    uiFontFamily: 'pretendard',
     // 마지막으로 업데이트 안내를 본 버전 (다르면 한 번 안내)
     lastSeenVersion: '',
     // 작가(나)의 성별('' | female | male)과 짧은 자기소개 — 모루 남매에게 작가를 알려 줌 ({{user}}와는 별개)
@@ -341,7 +343,7 @@ export const MANUAL_PERSONA_ID = '__manual__';
 export const RESETTABLE_SETTING_KEYS = [
     'forgeMode', 'botDirection', 'botPersona', 'personaBase', 'greetingLength', 'greetingLengthCustom', 'greetingPov', 'density',
     'generationMode', 'templatePreset', 'customFields', 'language', 'connectionProfile', 'maxTokens',
-    'includeWorldInfo', 'includeSetting', 'includeCharacter', 'settingFields', 'supporterProfile', 'supporterGender', 'supporterUserName', 'supporterUserGender', 'supporterUserIntro', 'uiFontSize', 'chatFontSize', 'cardFields', 'autoSaveHistory', 'completionSound', 'spoilerProtection', 'streamRequests',
+    'includeWorldInfo', 'includeSetting', 'includeCharacter', 'settingFields', 'supporterProfile', 'supporterGender', 'supporterUserName', 'supporterUserGender', 'supporterUserIntro', 'uiFontSize', 'chatFontSize', 'uiFontFamily', 'cardFields', 'autoSaveHistory', 'completionSound', 'spoilerProtection', 'streamRequests',
 ];
 
 // 대화형 서포터 표정 — 모델이 답마다 <face>로 고름 (이미지가 없는 표정은 기본 표정으로)
