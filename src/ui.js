@@ -158,11 +158,12 @@ function isImeComposing(e) {
 
 // ===== 설치·업데이트 후 한 번 뜨는 안내 창 =====
 const UPDATE_NOTES = [
-    '대장간 창과 모루 남매 대화의 글자 크기를 따로 조절할 수 있습니다. (설정 탭 → 화면)',
+    '대장간 창과 모루 남매 대화의 글자 크기를 따로 조절하고, 글꼴도 고를 수 있습니다. (설정 탭 → 화면)',
     '모루 남매에게 작가 정보(성별 · 자기소개)를 알려 줄 수 있습니다.',
     '모루 남매와의 대화를 기록마다 따로 저장해, 대화가 길어져도 저장이 가볍습니다.',
     '기록 보관 개수가 200개로 늘었고, 가득 차기 전에 미리 알려 줍니다.',
     '프롬프트 탭의 항목 이름을 [페르소나] · [봇] · [공통]처럼 보기 쉽게 정리했습니다.',
+    '직접 편집 · 섹션 재생성 · 바로 적용한 내용이 기록에 저장되지 않던 문제를 고쳤습니다.',
 ];
 
 // 쌍둥이 기본 이미지 (직접 올린 이미지가 있으면 그것)
@@ -2461,6 +2462,7 @@ async function onSectionRegenClick() {
         const section = generation.sections[sectionKey];
         restore();
         updateResultKindBadge();
+        syncProfileToHistory(generation);
         $card.find('.pf-section-regen-panel textarea').val('');
 
         const headerLabel = headerLabelOf(section);
@@ -2539,7 +2541,7 @@ function onSectionEditSave() {
     const { html, isEmpty } = sectionBodyHtml(section);
     $card.find('.pf-section-card-body').html(html).toggleClass('empty', isEmpty).show();
     refreshResultHeader();
-
+    syncProfileToHistory();
 }
 
 function onSectionEditCancel() {
@@ -2611,9 +2613,12 @@ async function toggleEditMode() {
 }
 
 function applyEdit() {
-    updateFromEditedText($('#pf-edit-textarea').val());
+    const text = $('#pf-edit-textarea').val();
+    const changed = text !== state.currentGeneration?.fullText;
+    updateFromEditedText(text);
     setEditMode(false);
     refreshProfileView();
+    if (changed) syncProfileToHistory();
 }
 
 // 프로필 글이 통째로 바뀐 뒤 (전체 편집·서포터 변경안 적용) 카드·배지·제목 다시 그리기
@@ -3396,6 +3401,7 @@ function refreshAfterSupportEdit(kind) {
         syncGreetingToHistory();
     } else {
         refreshProfileView();
+        syncProfileToHistory();
     }
     renderSupportLog({ scroll: 'stay' });
 }
@@ -3438,6 +3444,24 @@ function onSupportUndo() {
     applied.delete(editIndex);
     refreshAfterSupportEdit(info.kind);
     showToast('info', '적용을 되돌렸습니다.');
+}
+
+// 결과를 제자리에서 고친 뒤 (직접 편집·섹션 재생성·서포터 바로 적용·되돌리기) 지금 기록에도 반영
+// — 안 하면 기록을 다시 불러왔을 때 고치기 전 글로 돌아감
+async function syncProfileToHistory(gen = state.currentGeneration) {
+    if (!getSettings().autoSaveHistory || !gen?.fullText) return;
+    try {
+        const found = gen.historyId && await updateHistory(gen.historyId, {
+            fullText: gen.fullText,
+            kind: gen.resultKind || 'original',
+        });
+        // 기록이 지워졌으면 새로 저장 (그사이 다른 결과를 불러왔으면 건너뜀)
+        if (!found && gen === state.currentGeneration) gen.historyId = await addHistory(historyEntryFromCurrent(defaultHistoryName()));
+        updateHistoryUI();
+    } catch (error) {
+        logError('syncProfileToHistory', error);
+        showToast('error', `기록 자동 저장 실패: ${error.message}`);
+    }
 }
 
 async function syncGreetingToHistory() {
