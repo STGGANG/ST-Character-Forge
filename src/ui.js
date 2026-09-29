@@ -4,7 +4,7 @@ import {
     extensionName, extensionFolderPath,
     PROFILE_FIELDS, TEMPLATE_PRESETS, LANGUAGES, CARD_FIELDS, HISTORY_FILE_NAME, RESETTABLE_SETTING_KEYS,
     BOT_DIRECTIONS, GREETING_LENGTHS, GREETING_POVS, MIRROR_TEMPLATE, FORGE_RANKS, DENSITY_LEVELS, SETTING_FIELDS, MANUAL_PERSONA_ID,
-    SUPPORTER_AVATARS, SUPPORTER_FACES, HISTORY_LIMIT, HISTORY_WARN_AT,
+    SUPPORTER_AVATARS, SUPPORTER_FACES, HISTORY_LIMIT, HISTORY_WARN_AT, EXTENSION_VERSION, FONT_SCALES,
 } from './constants.js';
 import { PROMPT_SLOTS } from './prompt-defaults.js';
 import { state, log, logError, getSettings, cancelOperation, isCancelError, onBusyChange } from './state.js';
@@ -156,6 +156,58 @@ function isImeComposing(e) {
     return !!(e.originalEvent?.isComposing || e.isComposing || e.keyCode === 229);
 }
 
+// ===== 설치·업데이트 후 한 번 뜨는 안내 창 =====
+const UPDATE_NOTES = [
+    '대장간 창과 모루 남매 대화의 글자 크기를 따로 조절할 수 있습니다. (설정 탭 → 화면)',
+    '모루 남매에게 작가 정보(성별 · 자기소개)를 알려 줄 수 있습니다.',
+    '모루 남매와의 대화를 기록마다 따로 저장해, 대화가 길어져도 저장이 가볍습니다.',
+    '기록 보관 개수가 200개로 늘었고, 가득 차기 전에 미리 알려 줍니다.',
+    '프롬프트 탭의 항목 이름을 [페르소나] · [봇] · [공통]처럼 보기 쉽게 정리했습니다.',
+];
+
+// 쌍둥이 기본 이미지 (직접 올린 이미지가 있으면 그것)
+function noticeAvatarHtml(gender, face) {
+    const custom = getSettings()?.supporterAvatars?.[gender] || {};
+    const url = custom[face] || custom.neutral || SUPPORTER_AVATARS[gender]?.[face] || SUPPORTER_AVATARS[gender]?.neutral;
+    return url ? `<img src="${escapeHtml(url)}" alt="">` : '<i class="fa-solid fa-hammer"></i>';
+}
+
+// 대장간 창을 열 때 — 이 버전의 안내에서 "확인"을 누른 적이 없으면 띄움
+// (확인을 눌러야만 본 것으로 기록 → 안 누르고 새로고침하면 다음에 열 때 다시)
+function showUpdateNoticeOnce() {
+    const settings = getSettings();
+    if (!settings || settings.lastSeenVersion === EXTENSION_VERSION || $('.pf-update-notice').length) return;
+    const line = (gender, face, text) => `
+        <div class="pf-support-msg pf-support-theirs">
+            <span class="pf-support-avatar pf-support-avatar-chat" aria-hidden="true">${noticeAvatarHtml(gender, face)}</span>
+            <div class="pf-support-stack">
+                <span class="pf-support-name">${escapeHtml(supporterName(gender))}</span>
+                <div class="pf-support-group"><div class="pf-support-bubble">${escapeHtml(text)}</div></div>
+            </div>
+        </div>`;
+    const $notice = $(`
+        <div class="persona-forge-popup open pf-update-notice" role="dialog" aria-modal="true" aria-label="캐릭터 대장간 업데이트 안내">
+            <div class="pf-update-card">
+                <div class="pf-update-head">
+                    <h2 class="pf-update-title">캐릭터 대장간</h2>
+                    <span class="pf-update-version">v${EXTENSION_VERSION}</span>
+                </div>
+                ${line('female', 'smile', '업데이트 끝났어요. 글자가 작아서 눈 찡그리던 분들, 이제 설정 탭 맨 아래에서 키울 수 있어요.')}
+                ${line('male', 'smile', '그리고 이제 저희랑 대화할 때 작가님 소개도 받을 수 있어요. 궁금했거든요, 작가님이 어떤 분인지!')}
+                <div class="pf-update-notes">
+                    <h3>${EXTENSION_VERSION} — 업데이트 내역</h3>
+                    <ul>${UPDATE_NOTES.map(note => `<li>${escapeHtml(note)}</li>`).join('')}</ul>
+                </div>
+                <button type="button" class="pf-primary-btn pf-update-ok">확인</button>
+            </div>
+        </div>`);
+    $notice.on('click', '.pf-update-ok', () => {
+        updateSetting('lastSeenVersion', EXTENSION_VERSION);
+        $notice.remove();
+    });
+    $('body').append($notice);
+}
+
 export function bindUIEvents() {
     // 이벤트는 팝업 안에서만 처리 (실리태번의 다른 곳을 누를 때 검사하지 않도록)
     const $root = $('#persona-forge-popup');
@@ -302,6 +354,15 @@ export function bindUIEvents() {
         $('#pf-conn-status').hide();
     });
     $root.on('click', '#pf-conn-test', () => onConnectionTest('main'));
+    // 글자 크기 (화면)
+    $root.on('change', 'input[name="pf-ui-font"]', function () {
+        updateSetting('uiFontSize', FONT_SCALES[$(this).val()] ? $(this).val() : 'medium');
+        applyFontScale();
+    });
+    $root.on('change', 'input[name="pf-chat-font"]', function () {
+        updateSetting('chatFontSize', FONT_SCALES[$(this).val()] ? $(this).val() : 'medium');
+        applyFontScale();
+    });
     $root.on('click', '#pf-supporter-conn-test', () => onConnectionTest('supporter'));
     $root.on('change', '#pf-supporter-profile', function () {
         updateSetting('supporterProfile', String($(this).val() || ''));
@@ -633,6 +694,7 @@ export function openPopup() {
     seedForgedCount();
     $('#persona-forge-popup').addClass('open');
     requestAnimationFrame(fitSupportLogHeight); // 창이 보인 뒤에 높이를 잼
+    showUpdateNoticeOnce(); // 설치·업데이트 후 확인을 누르기 전까지 (대장간 창 위에)
 }
 
 export function closePopup() {
@@ -848,9 +910,21 @@ function updateBotPersonaInfo() {
 
 const updateBotPersonaInfoSoon = debounce(updateBotPersonaInfo, 400);
 
+// 글자 크기 — 창 전체·모루 남매 대화 배율을 CSS 변수로 (창 안의 크기는 모두 em이라 배율만 바꾸면 됨)
+function applyFontScale() {
+    const settings = getSettings();
+    const root = document.getElementById('persona-forge-popup');
+    if (!root || !settings) return;
+    root.style.setProperty('--pf-ui-scale', String(FONT_SCALES[settings.uiFontSize]?.ui ?? 1));
+    root.style.setProperty('--pf-chat-scale', String(FONT_SCALES[settings.chatFontSize]?.chat ?? 1));
+    $(`input[name="pf-ui-font"][value="${settings.uiFontSize}"]`).prop('checked', true);
+    $(`input[name="pf-chat-font"][value="${settings.chatFontSize}"]`).prop('checked', true);
+}
+
 function updateSettingsUI() {
     const settings = getSettings();
     if (!settings) return;
+    applyFontScale();
 
     $(`input[name="pf-gen-mode"][value="${settings.generationMode}"]`).prop('checked', true);
     $('#pf-guided-input').toggle(settings.generationMode === 'guided');
@@ -4642,7 +4716,7 @@ const RESETTABLE_LABELS = {
     includeWorldInfo: '월드인포 켜기', cardFields: '참고할 카드 항목', autoSaveHistory: '기록 자동 저장',
     spoilerProtection: '스포일러 방지', density: '분량', completionSound: '완료 알림음', includeSetting: '세계관 설정 켜기', includeCharacter: '캐릭터 설정 켜기', settingFields: '세계관 항목 선택·순서',
     supporterProfile: '대화형 서포터 연결 프로필', supporterGender: '대화 상대 기본값', supporterUserName: '나를 부를 이름',
-    supporterUserGender: '내 성별', supporterUserIntro: '자기소개',
+    supporterUserGender: '내 성별', supporterUserIntro: '자기소개', uiFontSize: '글자 크기', chatFontSize: '대화 글자 크기',
 };
 
 // 실리태번 확인 대화상자 (없으면 브라우저 기본 확인창)

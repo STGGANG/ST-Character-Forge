@@ -1,6 +1,6 @@
 import { extension_settings } from "../../../../extensions.js";
 import { saveSettingsDebounced } from "../../../../../script.js";
-import { extensionName, defaultSettings, CARD_FIELDS, LANGUAGES, RESETTABLE_SETTING_KEYS, DENSITY_LEVELS, SETTING_FIELDS, SUPPORTER_FACES } from './constants.js';
+import { extensionName, defaultSettings, CARD_FIELDS, LANGUAGES, RESETTABLE_SETTING_KEYS, DENSITY_LEVELS, SETTING_FIELDS, SUPPORTER_FACES, FONT_SCALES } from './constants.js';
 import { PROMPT_SLOTS, LEGACY_PROMPT_KEYS } from './prompt-defaults.js';
 import { state, log } from './state.js';
 
@@ -62,6 +62,8 @@ function migrateSettings(settings) {
         delete settings.concise;
     }
     if (!DENSITY_LEVELS[settings.density]) settings.density = 'default';
+    if (!FONT_SCALES[settings.uiFontSize]) settings.uiFontSize = 'medium';
+    if (!FONT_SCALES[settings.chatFontSize]) settings.chatFontSize = 'medium';
     // 세계관 항목: 기본 항목 또는 직접 추가한 항목만 (고른 순서 유지)
     if (!settings.settingFieldDefinitions || typeof settings.settingFieldDefinitions !== 'object') settings.settingFieldDefinitions = {};
     settings.settingFields = [...new Set(Array.isArray(settings.settingFields) ? settings.settingFields : [])]

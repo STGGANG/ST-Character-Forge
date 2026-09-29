@@ -148,7 +148,8 @@
     backdrop-filter: blur(var(--pf-blur));
     -webkit-backdrop-filter: blur(var(--pf-blur));
     overflow: hidden;
-    font-size: var(--mainFontSize, 15px);
+    /* 글자 크기 설정(화면 → 글자 크기)에 따라 배율 — 창 안의 글자·간격은 모두 이 크기를 기준으로 */
+    font-size: calc(var(--mainFontSize, 15px) * var(--pf-ui-scale, 1));
     letter-spacing: -0.005em;
     text-align: left;
     animation: pf-rise .22s cubic-bezier(.2, .8, .3, 1);
@@ -2694,6 +2695,12 @@
     color: var(--pf-faint);
 }
 
+/* 모루 남매 대화 글자 크기 (화면 → 대화 글자 크기) */
+.pf-support-log,
+.pf-support-input {
+    font-size: calc(1em * var(--pf-chat-scale, 1));
+}
+
 /* 대화 기록 — 말풍선 (서포터는 왼쪽, 나는 오른쪽) */
 .pf-support-log {
     --pf-fade-top: 0px;
@@ -3910,3 +3917,75 @@
     }
 }
 
+
+/* ===== 설치·업데이트 후 한 번 뜨는 안내 창 ===== */
+.pf-update-card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: min(460px, 100%);
+    max-height: calc(100dvh - 32px);
+    padding: 22px 22px 18px;
+    overflow-y: auto;
+    background: var(--pf-surface);
+    border: 1px solid var(--pf-line);
+    border-radius: var(--pf-r-window);
+    box-shadow: var(--pf-shadow);
+    font-family: var(--pf-font);
+    font-size: var(--mainFontSize, 15px);
+    animation: pf-rise .22s cubic-bezier(.2, .8, .3, 1);
+}
+
+.pf-update-head {
+    text-align: center;
+}
+
+.pf-update-title {
+    margin: 0;
+    font-size: 1.25em;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+}
+
+.pf-update-version {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 1px 10px;
+    border-radius: 999px;
+    background: var(--pf-action-soft);
+    color: var(--pf-action-text);
+    font-size: .78em;
+    font-weight: 700;
+}
+
+.pf-update-card .pf-support-stack {
+    max-width: 100%;
+}
+
+.pf-update-notes {
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: var(--pf-soft);
+    font-size: .88em;
+    line-height: 1.7;
+}
+
+.pf-update-notes h3 {
+    margin: 0 0 8px;
+    font-size: 1em;
+    font-weight: 700;
+}
+
+.pf-update-notes ul {
+    margin: 0;
+    padding-left: 1.2em;
+}
+
+.pf-update-notes li + li {
+    margin-top: 4px;
+}
+
+.persona-forge-popup .pf-update-ok {
+    align-self: center;
+    min-width: 8em;
+}

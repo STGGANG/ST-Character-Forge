@@ -1,5 +1,15 @@
 export const extensionName = "persona-forge";
 
+// manifest.json의 version과 같게 — 바뀌면 설치·업데이트 후 한 번 안내 창을 띄움
+export const EXTENSION_VERSION = '2.0.1';
+
+// 글자 크기 — 대장간 창 전체(ui)와 모루 남매 대화(chat) 배율
+export const FONT_SCALES = {
+    small: { label: '작게', ui: 0.93, chat: 0.92 },
+    medium: { label: '보통', ui: 1, chat: 1 },
+    large: { label: '크게', ui: 1.08, chat: 1.15 },
+};
+
 function detectExtensionPath() {
     try {
         if (typeof import.meta !== 'undefined' && import.meta.url) {
@@ -260,6 +270,11 @@ export const defaultSettings = {
     supporterProfile: '',
     supporterGender: 'female',
     supporterUserName: '',
+    // 글자 크기 (small | medium | large) — 대장간 창 전체 / 모루 남매 대화
+    uiFontSize: 'medium',
+    chatFontSize: 'medium',
+    // 마지막으로 업데이트 안내를 본 버전 (다르면 한 번 안내)
+    lastSeenVersion: '',
     // 작가(나)의 성별('' | female | male)과 짧은 자기소개 — 모루 남매에게 작가를 알려 줌 ({{user}}와는 별개)
     supporterUserGender: '',
     supporterUserIntro: '',
@@ -326,7 +341,7 @@ export const MANUAL_PERSONA_ID = '__manual__';
 export const RESETTABLE_SETTING_KEYS = [
     'forgeMode', 'botDirection', 'botPersona', 'personaBase', 'greetingLength', 'greetingLengthCustom', 'greetingPov', 'density',
     'generationMode', 'templatePreset', 'customFields', 'language', 'connectionProfile', 'maxTokens',
-    'includeWorldInfo', 'includeSetting', 'includeCharacter', 'settingFields', 'supporterProfile', 'supporterGender', 'supporterUserName', 'supporterUserGender', 'supporterUserIntro', 'cardFields', 'autoSaveHistory', 'completionSound', 'spoilerProtection', 'streamRequests',
+    'includeWorldInfo', 'includeSetting', 'includeCharacter', 'settingFields', 'supporterProfile', 'supporterGender', 'supporterUserName', 'supporterUserGender', 'supporterUserIntro', 'uiFontSize', 'chatFontSize', 'cardFields', 'autoSaveHistory', 'completionSound', 'spoilerProtection', 'streamRequests',
 ];
 
 // 대화형 서포터 표정 — 모델이 답마다 <face>로 고름 (이미지가 없는 표정은 기본 표정으로)
