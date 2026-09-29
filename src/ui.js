@@ -4,7 +4,7 @@ import {
     extensionName, extensionFolderPath,
     PROFILE_FIELDS, TEMPLATE_PRESETS, LANGUAGES, CARD_FIELDS, HISTORY_FILE_NAME, RESETTABLE_SETTING_KEYS,
     BOT_DIRECTIONS, GREETING_LENGTHS, GREETING_POVS, MIRROR_TEMPLATE, FORGE_RANKS, DENSITY_LEVELS, SETTING_FIELDS, MANUAL_PERSONA_ID,
-    SUPPORTER_AVATARS, SUPPORTER_FACES,
+    SUPPORTER_AVATARS, SUPPORTER_FACES, HISTORY_LIMIT, HISTORY_WARN_AT,
 } from './constants.js';
 import { PROMPT_SLOTS } from './prompt-defaults.js';
 import { state, log, logError, getSettings, cancelOperation, isCancelError, onBusyChange } from './state.js';
@@ -14,6 +14,7 @@ import {
 } from './storage.js';
 import {
     listHistory, addHistory, updateHistory, duplicateHistory, deleteHistory, deleteHistoryItems, clearHistory, importHistory, getHistoryBackend,
+    takeEvictedCount, loadSupportChat, saveSupportChat, exportHistoryItems,
 } from './history-store.js';
 import { getConnectionProfiles, describeConnection, testConnection } from './api.js';
 import {
@@ -337,6 +338,12 @@ export function bindUIEvents() {
     $root.on('click', '#pf-support-settings-btn', () => $('#pf-support-settings').toggle());
     $root.on('input', '#pf-support-username', debounce(function () {
         updateSetting('supporterUserName', String($('#pf-support-username').val() || '').trim());
+    }, 300));
+    $root.on('change', 'input[name="pf-support-user-gender"]', function () {
+        updateSetting('supporterUserGender', ['female', 'male'].includes($(this).val()) ? $(this).val() : '');
+    });
+    $root.on('input', '#pf-support-userintro', debounce(function () {
+        updateSetting('supporterUserIntro', String($('#pf-support-userintro').val() || '').trim());
     }, 300));
     // 성별은 이 대화의 것 (대화마다 따로) — 고른 성별은 새 대화의 기본값도 됨
     $root.on('change', 'input[name="pf-supporter-gender"]', function () {
@@ -2876,6 +2883,8 @@ function renderSupportIdentity() {
             </div>`;
     }).join(''));
     $('#pf-support-username').val(settings?.supporterUserName || '');
+    $(`input[name="pf-support-user-gender"][value="${settings?.supporterUserGender || ''}"]`).prop('checked', true);
+    if (!$('#pf-support-userintro').is(':focus')) $('#pf-support-userintro').val(settings?.supporterUserIntro || '');
     $(`input[name="pf-supporter-gender"][value="${key}"]`).prop('checked', true);
 }
 
@@ -3175,8 +3184,8 @@ const flushSupportSaves = debounce(async () => {
     for (const gen of gens) {
         if (!gen.historyId) continue;
         try {
-            const chat = supportChatForSave(gen.supportChat);
-            await updateHistory(gen.historyId, { supportChat: chat, supportGender: chat ? gen.supportGender || '' : '' });
+            // 대화 파일만 다시 씀 (기록 전체 파일은 건드리지 않음)
+            await saveSupportChat(gen.historyId, supportChatForSave(gen.supportChat) || null, gen.supportGender);
         } catch (error) {
             logError('saveSupportChat', error);
         }
@@ -3827,6 +3836,16 @@ async function updateHistoryUI({ refresh = false } = {}) {
     }
     if (revision !== historyRenderRevision) return;
 
+    // 보관 개수를 넘어 오래된 기록이 지워졌으면 알림 (기록을 넣은 뒤에는 늘 이 함수로 목록을 다시 그림)
+    const evicted = takeEvictedCount();
+    if (evicted) {
+        showToast('warning', `기록이 ${HISTORY_LIMIT}개를 넘어 가장 오래된 기록 ${evicted}개가 지워졌습니다. (즐겨찾기한 기록은 지워지지 않습니다)`);
+    }
+    // 거의 찼으면 기록 탭에 미리 안내
+    $('#pf-history-limit-note')
+        .text(`기록이 ${history.length}개입니다. ${HISTORY_LIMIT}개를 넘으면 즐겨찾기하지 않은 오래된 기록부터 자동으로 지워집니다. 남길 기록은 즐겨찾기하거나, 오른쪽 위 ⋮ 메뉴의 '기록 내보내기'로 백업해 두십시오.`)
+        .toggle(history.length >= HISTORY_WARN_AT);
+
     if (!history.length) {
         historySelectMode = false;
         historySelected.clear();
@@ -4030,7 +4049,7 @@ async function onHistoryLoad() {
         conceptText: item.conceptText || '',
         ...greetingsFromHistory(item),
         worldOnly: !!item.worldOnly,
-        supportChat: Array.isArray(item.supportChat) ? structuredClone(item.supportChat) : [], // 기록 목록과 따로 (저장 전 대화가 목록에 섞이지 않게)
+        supportChat: await loadSupportChat(item), // 대화 파일(또는 예전 기록 안의 대화)에서 — 기록 목록과는 따로인 사본
         supportGender: item.supportGender === 'male' || item.supportGender === 'female' ? item.supportGender : '',
         historyId: item.id,
         sections: isCustom ? { _custom: { header: '', content: item.fullText } } : parseResponse(item.fullText),
@@ -4113,7 +4132,7 @@ async function onHistoryClear() {
 }
 
 async function onHistoryExport() {
-    const history = await listHistory({ refresh: true });
+    const history = await exportHistoryItems(); // 모루 남매와의 대화도 합쳐서
     if (!history.length) {
         showToast('warning', '내보낼 기록이 없습니다.');
         return;
@@ -4321,9 +4340,21 @@ function updatePromptUI() {
     renderStructure();
 }
 
+// 목록 순서 — 그 탭 전용([페르소나]·[봇]·[서포터]) → [세계관만] → [공통]
+function promptSlotGroup(slot) {
+    const label = PROMPT_SLOTS[slot].label;
+    if (label.startsWith('[공통]')) return 2;
+    if (label.startsWith('[세계관만]')) return 1;
+    return 0;
+}
+
 function visiblePromptSlots() {
     const scope = promptScope || (isBotMode() ? 'bot' : 'persona');
-    return Object.keys(PROMPT_SLOTS).filter(slot => (PROMPT_SLOTS[slot].modes || ['persona', 'bot']).includes(scope));
+    return Object.keys(PROMPT_SLOTS)
+        .filter(slot => (PROMPT_SLOTS[slot].modes || ['persona', 'bot']).includes(scope))
+        .map((slot, index) => ({ slot, index, group: promptSlotGroup(slot) }))
+        .sort((a, b) => a.group - b.group || a.index - b.index)
+        .map(item => item.slot);
 }
 
 async function onPromptScopeChange() {
@@ -4610,6 +4641,8 @@ const RESETTABLE_LABELS = {
     language: '출력 언어', connectionProfile: 'API 프로필', maxTokens: '최대 출력 토큰',
     includeWorldInfo: '월드인포 켜기', cardFields: '참고할 카드 항목', autoSaveHistory: '기록 자동 저장',
     spoilerProtection: '스포일러 방지', density: '분량', completionSound: '완료 알림음', includeSetting: '세계관 설정 켜기', includeCharacter: '캐릭터 설정 켜기', settingFields: '세계관 항목 선택·순서',
+    supporterProfile: '대화형 서포터 연결 프로필', supporterGender: '대화 상대 기본값', supporterUserName: '나를 부를 이름',
+    supporterUserGender: '내 성별', supporterUserIntro: '자기소개',
 };
 
 // 실리태번 확인 대화상자 (없으면 브라우저 기본 확인창)
@@ -4660,7 +4693,7 @@ function downloadJson(data, fileName) {
 }
 
 async function exportFullBackup() {
-    const history = await listHistory({ refresh: true });
+    const history = await exportHistoryItems(); // 모루 남매와의 대화도 합쳐서
     downloadJson({
         type: 'persona-forge-backup',
         version: 1,

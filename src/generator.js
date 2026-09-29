@@ -1134,6 +1134,13 @@ export function buildSupportRequest(chat = []) {
     const addressLine = address
         ? `Call the writer "${address}".`
         : 'The writer hasn\'t given a name; call them 작가님, or leave the address out.';
+    // 작가 본인 정보 (적었을 때만) — {{user}}와 헷갈리지 않게 따로 표시
+    const writerGender = { female: 'a woman', male: 'a man' }[settings.supporterUserGender] || '';
+    const writerIntro = String(settings.supporterUserIntro || '').trim();
+    const writerLines = [
+        writerGender ? `The writer is ${writerGender}.` : '',
+        writerIntro ? `What the writer says about themselves (the writer, not {{user}}):\n${wrap('writer_intro', writerIntro)}` : '',
+    ].filter(Boolean).join('\n');
 
     // 작성 원칙·문체 규칙·분량·추가 지침은 결과의 모드에 맞는 기존 설정을 그대로 씀 (판단 기준으로)
     const principles = getPrompt(gen.worldOnly ? 'worldPrinciples' : (mode === 'bot' ? 'botPrinciples' : 'principles'));
@@ -1158,7 +1165,7 @@ export function buildSupportRequest(chat = []) {
     const { blocks } = supportSources(gen);
     const system = [
         profile,
-        addressLine,
+        writerLines ? `${addressLine}\n${writerLines}` : addressLine,
         wrap('rules', `${getPrompt('supporterRules')}\n${SUPPORTER_FACE_RULE}`),
         wrap('craft_notes', craft),
         ...blocks,

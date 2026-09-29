@@ -2603,9 +2603,15 @@
     font-weight: 600;
 }
 
-.pf-support-setting .pf-input {
+.pf-support-setting .pf-input,
+.pf-support-setting .pf-textarea {
     flex: 1;
     min-width: 8em;
+}
+
+.persona-forge-popup #pf-support-userintro {
+    min-height: 0;
+    resize: vertical;
 }
 
 .pf-support-setting.pf-support-setting-top {
@@ -3342,6 +3348,16 @@
     flex-wrap: wrap;
     gap: 8px;
     margin: 0 2px;
+}
+
+.pf-history-limit-note {
+    margin: 0 2px;
+    padding: 8px 12px;
+    border: 1px solid var(--pf-warning-line);
+    border-radius: var(--pf-r-control);
+    background: var(--pf-warning-soft);
+    font-size: .8em;
+    line-height: 1.6;
 }
 
 .pf-history-count {

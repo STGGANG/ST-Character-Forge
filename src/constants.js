@@ -260,6 +260,9 @@ export const defaultSettings = {
     supporterProfile: '',
     supporterGender: 'female',
     supporterUserName: '',
+    // 작가(나)의 성별('' | female | male)과 짧은 자기소개 — 모루 남매에게 작가를 알려 줌 ({{user}}와는 별개)
+    supporterUserGender: '',
+    supporterUserIntro: '',
     // 직접 올린 프로필 이미지 (성별·표정마다, 256px로 줄인 data URL) — 비어 있으면 기본 이미지
     supporterAvatars: { female: {}, male: {} },
 
@@ -323,7 +326,7 @@ export const MANUAL_PERSONA_ID = '__manual__';
 export const RESETTABLE_SETTING_KEYS = [
     'forgeMode', 'botDirection', 'botPersona', 'personaBase', 'greetingLength', 'greetingLengthCustom', 'greetingPov', 'density',
     'generationMode', 'templatePreset', 'customFields', 'language', 'connectionProfile', 'maxTokens',
-    'includeWorldInfo', 'includeSetting', 'includeCharacter', 'settingFields', 'supporterProfile', 'supporterGender', 'supporterUserName', 'cardFields', 'autoSaveHistory', 'completionSound', 'spoilerProtection', 'streamRequests',
+    'includeWorldInfo', 'includeSetting', 'includeCharacter', 'settingFields', 'supporterProfile', 'supporterGender', 'supporterUserName', 'supporterUserGender', 'supporterUserIntro', 'cardFields', 'autoSaveHistory', 'completionSound', 'spoilerProtection', 'streamRequests',
 ];
 
 // 대화형 서포터 표정 — 모델이 답마다 <face>로 고름 (이미지가 없는 표정은 기본 표정으로)
@@ -350,7 +353,10 @@ export const SUPPORTER_AVATARS = {
     },
 };
 
-export const HISTORY_LIMIT = 100;
+// 기록 보관 개수 — 넘으면 즐겨찾기가 아닌 오래된 기록부터 지움 (기록은 저장할 때마다 파일 전체를 다시 쓰므로 무한히 두지 않음)
+export const HISTORY_LIMIT = 200;
+// 이 개수부터 기록 탭에 "곧 오래된 기록이 지워진다" 안내
+export const HISTORY_WARN_AT = 180;
 
 // 기록 파일 이름 (실리태번 data/<사용자>/user/files/ 에 저장)
 export const HISTORY_FILE_NAME = 'persona-forge-history.json';

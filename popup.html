@@ -758,6 +758,22 @@
                                         placeholder="비워 두면 작가님">
                                 </label>
                                 <div class="pf-support-setting">
+                                    <span>내 성별</span>
+                                    <div class="pf-pill-group">
+                                        <label class="pf-pill"><input type="radio" name="pf-support-user-gender"
+                                                value=""><span>선택 안 함</span></label>
+                                        <label class="pf-pill"><input type="radio" name="pf-support-user-gender"
+                                                value="female"><span>여성</span></label>
+                                        <label class="pf-pill"><input type="radio" name="pf-support-user-gender"
+                                                value="male"><span>남성</span></label>
+                                    </div>
+                                </div>
+                                <label class="pf-support-setting pf-support-setting-top">
+                                    <span>자기소개</span>
+                                    <textarea id="pf-support-userintro" class="pf-textarea" rows="2"
+                                        placeholder="자신을 소개하세요... (적은 분량 추천)"></textarea>
+                                </label>
+                                <div class="pf-support-setting">
                                     <span>대화 상대 (이 대화)</span>
                                     <div class="pf-pill-group">
                                         <label class="pf-pill"><input type="radio" name="pf-supporter-gender"
@@ -850,6 +866,7 @@
                         </select>
                     </div>
                 </div>
+                <p id="pf-history-limit-note" class="pf-history-limit-note" style="display: none;"></p>
                 <div id="pf-history-controls" class="pf-history-controls" style="display: none;">
                     <span id="pf-history-count" class="pf-history-count"></span>
                     <div class="pf-history-controls-row pf-history-normal">
