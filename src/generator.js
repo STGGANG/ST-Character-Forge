@@ -1125,6 +1125,7 @@ export function buildSupportRequest(chat = []) {
     const address = String(settings.supporterUserName || '').trim();
 
     const profile = getPrompt('supporterProfile')
+        .replaceAll('{trait}', getPrompt(male ? 'supporterTraitMale' : 'supporterTraitFemale'))
         .replaceAll('{look}', getPrompt(male ? 'supporterLookMale' : 'supporterLookFemale'))
         .replaceAll('{name}', name)
         .replaceAll('{gender}', male ? 'man' : 'woman')
