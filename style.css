@@ -3203,6 +3203,11 @@
     color: var(--pf-fg);
 }
 
+/* 숨은 칭호 (망치를 많이 두드렸을 때 기존 칭호 앞에) — 남매 카드의 칭호 표시와 같은 색 */
+.pf-forge-rank-hidden {
+    color: var(--pf-action-text);
+}
+
 .persona-forge-popup .pf-forge-rank[data-level="3"] > i,
 .pf-forge-rank[data-level="3"] .pf-forge-rank-name {
     color: var(--pf-warning);
@@ -3798,6 +3803,85 @@
     0% { opacity: 0; transform: translate(0, 4px) scale(.7); }
     25% { opacity: 1; transform: translate(4px, -4px) scale(1.1); }
     100% { opacity: 0; transform: translate(10px, -12px) scale(1); }
+}
+
+/* 망치를 계속 두드리면 모루 남매가 창 아래에서 잠깐 튀어나와 한마디 (위치는 JS가 창 아래 가운데로) */
+.pf-moru-cameo {
+    position: absolute;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: max-content;
+    max-width: min(360px, calc(100vw - 48px));
+    padding: 8px 16px 8px 8px;
+    border: 1px solid var(--pf-line);
+    border-radius: 18px;
+    background: var(--pf-surface);
+    /* 옅고 좁은 그림자 — 창 위에 살짝 떠 보이게만 */
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .09), 0 1px 3px rgba(0, 0, 0, .06);
+    font-family: var(--pf-font);
+    font-size: calc(var(--mainFontSize, 15px) * var(--pf-ui-scale, 1) * .9);
+    line-height: 1.45;
+    transform: translateX(-50%);
+    cursor: pointer;
+    /* 튀어나온 뒤 망치에 맞은 듯 살짝 흔들림 */
+    animation: pf-cameo-in .38s cubic-bezier(.2, .9, .3, 1.25), pf-cameo-shake .5s .38s ease-in-out;
+}
+
+.pf-moru-cameo.pf-leaving {
+    animation: pf-cameo-out .25s ease-in forwards;
+}
+
+.pf-moru-cameo .pf-support-avatar {
+    width: 44px;
+    height: 44px;
+}
+
+.pf-moru-cameo-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.pf-moru-cameo-name {
+    font-size: .8em;
+    font-weight: 700;
+    color: var(--pf-muted);
+}
+
+/* 행동·표정 서술 — 대화창의 *서술*처럼 기울여 옅게 */
+.pf-moru-cameo-action {
+    font-size: .84em;
+    font-style: italic;
+    color: var(--pf-muted);
+}
+
+/* 숨은 칭호를 막 얻었을 때 */
+.pf-moru-cameo-badge {
+    align-self: flex-start;
+    margin-top: 5px;
+    padding: 1px 9px;
+    border-radius: 999px;
+    background: var(--pf-action-soft);
+    color: var(--pf-action-text);
+    font-size: .76em;
+    font-weight: 700;
+}
+
+@keyframes pf-cameo-in {
+    from { opacity: 0; transform: translate(-50%, 18px) scale(.96); }
+}
+
+@keyframes pf-cameo-out {
+    to { opacity: 0; transform: translate(-50%, 10px); }
+}
+
+@keyframes pf-cameo-shake {
+    20% { transform: translateX(calc(-50% - 3px)) rotate(-1.2deg); }
+    40% { transform: translateX(calc(-50% + 3px)) rotate(1deg); }
+    60% { transform: translateX(calc(-50% - 2px)) rotate(-.6deg); }
+    80% { transform: translateX(calc(-50% + 1px)) rotate(.3deg); }
 }
 
 .persona-forge-popup.pf-mode-bot [data-pf-mode="persona"],

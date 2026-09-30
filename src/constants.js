@@ -1,7 +1,7 @@
 export const extensionName = "persona-forge";
 
 // manifest.json의 version과 같게 — 바뀌면 설치·업데이트 후 한 번 안내 창을 띄움
-export const EXTENSION_VERSION = '2.0.2';
+export const EXTENSION_VERSION = '2.0.3';
 
 // 글자 크기 — 대장간 창 전체(ui)와 모루 남매 대화(chat) 배율
 export const FONT_SCALES = {
@@ -313,6 +313,8 @@ export const defaultSettings = {
     completionSound: true,
 
     forgedCount: null,
+    // 제목 망치를 두드린 횟수 (숨은 칭호용)
+    hammerTaps: 0,
 
     // 수정한 프롬프트 { [PROMPT_SLOTS 키]: 텍스트 } — 키가 없으면 기본 프롬프트 사용
     customPrompts: {},
@@ -336,6 +338,13 @@ export const FORGE_RANKS = [
     { min: 10, name: '숙련 대장장이' },
     { min: 30, name: '장인' },
     { min: 100, name: '전설의 대장장이' },
+];
+
+// 숨은 칭호 — 제목 망치를 두드린 횟수에 따라 기존 칭호 앞에 붙음
+export const HAMMER_TITLES = [
+    { min: 100, name: '손목 시큰한' },
+    { min: 300, name: '망치에 홀린' },
+    { min: 500, name: '모루도 겁내는' },
 ];
 
 export const MANUAL_PERSONA_ID = '__manual__';

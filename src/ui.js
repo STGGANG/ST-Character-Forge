@@ -4,7 +4,7 @@ import {
     extensionName, extensionFolderPath,
     PROFILE_FIELDS, TEMPLATE_PRESETS, LANGUAGES, CARD_FIELDS, HISTORY_FILE_NAME, RESETTABLE_SETTING_KEYS,
     BOT_DIRECTIONS, GREETING_LENGTHS, GREETING_POVS, MIRROR_TEMPLATE, FORGE_RANKS, DENSITY_LEVELS, SETTING_FIELDS, MANUAL_PERSONA_ID,
-    SUPPORTER_AVATARS, SUPPORTER_FACES, HISTORY_LIMIT, HISTORY_WARN_AT, EXTENSION_VERSION, FONT_SCALES,
+    SUPPORTER_AVATARS, SUPPORTER_FACES, HISTORY_LIMIT, HISTORY_WARN_AT, EXTENSION_VERSION, FONT_SCALES, HAMMER_TITLES,
 } from './constants.js';
 import { PROMPT_SLOTS } from './prompt-defaults.js';
 import { state, log, logError, getSettings, cancelOperation, isCancelError, onBusyChange } from './state.js';
@@ -99,7 +99,6 @@ const DONE_TEXTS = {
     greeting: ['그리팅을 만들었습니다!', '첫 장면의 막이 올랐습니다!', '첫 장면이 준비되었습니다!'],
 };
 let loadingTextTimer = null;
-let hammerTaps = 0;
 
 const modeSelections = { persona: null, bot: null };
 
@@ -157,6 +156,8 @@ function isImeComposing(e) {
 }
 
 // ===== 설치·업데이트 후 한 번 뜨는 안내 창 =====
+// 아래 내역이 모은 버전 범위의 시작 (제목: 2.0.1~지금 버전)
+const UPDATE_NOTES_SINCE = '2.0.1';
 const UPDATE_NOTES = [
     '대장간 창과 모루 남매 대화의 글자 크기를 따로 조절하고, 글꼴도 고를 수 있습니다. (설정 탭 → 화면)',
     '모루 남매에게 작가 정보(성별 · 자기소개)를 알려 줄 수 있습니다.',
@@ -165,6 +166,7 @@ const UPDATE_NOTES = [
     '프롬프트 탭의 항목 이름을 [페르소나] · [봇] · [공통]처럼 보기 쉽게 정리했습니다.',
     '직접 편집 · 섹션 재생성 · 바로 적용한 내용이 기록에 저장되지 않던 문제를 고쳤습니다.',
     '모루 남매와의 대화에서 내 메시지와 남매의 대사·서술을 고칠 수 있습니다.',
+    '캐릭터 생성과 모루 남매 프롬프트를 조금 더 다듬었습니다.',
 ];
 
 // 쌍둥이 기본 이미지 (직접 올린 이미지가 있으면 그것)
@@ -199,7 +201,7 @@ function showUpdateNoticeOnce({ force = false } = {}) {
                 ${line('female', 'smile', '업데이트 끝났어요. 글자가 작아서 눈 찡그리던 분들, 이제 설정 탭 맨 아래에서 키울 수 있어요.')}
                 ${line('male', 'smile', '그리고 이제 저희랑 대화할 때 작가님 소개도 받을 수 있어요. 궁금했거든요, 작가님이 어떤 분인지!')}
                 <div class="pf-update-notes">
-                    <h3>${EXTENSION_VERSION} — 업데이트 내역</h3>
+                    <h3>${UPDATE_NOTES_SINCE === EXTENSION_VERSION ? EXTENSION_VERSION : `${UPDATE_NOTES_SINCE}~${EXTENSION_VERSION}`} — 업데이트 내역</h3>
                     <ul>${UPDATE_NOTES.map(note => `<li>${escapeHtml(note)}</li>`).join('')}</ul>
                 </div>
                 <button type="button" class="pf-primary-btn pf-update-ok">확인</button>
@@ -728,6 +730,7 @@ let bodyScrollOnClose = null;
 
 export function closePopup() {
     bodyScrollOnClose = $('.pf-body').scrollTop();
+    $('.pf-moru-cameo').remove();
     $('#persona-forge-popup').removeClass('open');
 }
 
@@ -4456,14 +4459,129 @@ function playGlint(target) {
 }
 
 function onTitleHammerClick() {
-    hammerTaps += 1;
+    // 누른 횟수는 설정에 쌓임 (숨은 칭호·남매 등장이 새로고침해도 이어지게)
+    const settings = getSettings();
+    const taps = (settings.hammerTaps || 0) + 1;
+    settings.hammerTaps = taps;
+    saveSettings();
     this.classList.remove('pf-hammer-swing');
     void this.offsetWidth;
     this.classList.add('pf-hammer-swing');
-    const word = hammerTaps % 10 === 0 ? '손목 조심하십시오!' : '깡!';
+    const word = taps % 10 === 0 ? '손목 조심!' : '깡!';
     const $pop = $('<span class="pf-hammer-pop" aria-hidden="true"></span>').text(word);
     $(this).closest('.pf-title').append($pop);
     setTimeout(() => $pop.remove(), 900);
+    playClang();
+    if (taps >= HAMMER_TITLES[0].min) renderForgeRank();
+    const cameo = moruCameoAt(taps);
+    if (cameo) showMoruCameo(cameo);
+}
+
+// 망치를 계속 두드리면 모루 남매가 아래에서 튀어나와 말림 — 200번까지는 정해진 순서대로,
+// 그 뒤로는 20번마다 아무거나 (숨은 칭호를 얻는 300·500번은 정해진 대사)
+// [성별, 표정, 행동(서술 — 작가는 '당신'), 대사]
+const MORU_CAMEOS = {
+    15: ['male', 'smile', '당신 손에 들린 망치를 보고 씩 웃는다.', () => '오, 망치질 좋은데요? 근데 그거 누나 망치예요.'],
+    30: ['female', 'surprised', '작업대 너머에서 고개를 번쩍 든다.', () => '…그거 제 망치인데요. 살살 다루세요.'],
+    50: ['male', 'shy', '머쓱하게 뒷머리를 긁으며 사탕 통을 내민다.', who => `${who}, 혹시 스트레스 받으세요? 작업대 밑에 사탕 있어요.`],
+    75: ['female', 'neutral', '팔짱을 낀 채 당신을 빤히 내려다본다.', () => '그만. 모루 깨지면 수리비 청구할 거예요.'],
+    100: ['female', 'smile', '못 이긴 척 피식 웃는다.', () => '백 번이면 인정. 오늘부터 수습 대장장이 하세요.'],
+    120: ['male', 'smile', '몰래 당신 옆에 쪼그려 앉아 박자를 맞춘다.', () => '깡, 깡, 깡… 오, 리듬 좋은데요? 이대로 노래 하나 뽑죠.'],
+    140: ['female', 'neutral', '당신 손에서 망치를 빼앗으려다 헛손질한다.', () => '…놓으라니까요. 왜 이렇게 꽉 쥐고 있어요?'],
+    160: ['male', 'surprised', '누나 등 뒤에 숨어 고개만 빼꼼 내민다.', () => '누나, 오늘 망치질 소리가 좀 무서운데요…?'],
+    180: ['female', 'shy', '사탕 하나를 까서 당신 앞에 불쑥 내민다.', who => `${who}, 이거 먹고 좀 쉬어요. …딱히 걱정돼서 그러는 건 아니고요.`],
+    200: ['male', 'smile', '두 손을 번쩍 들고 만세를 부른다.', who => `이백 번 돌파! 누나, ${who} 전용 망치 하나 맞춰 줘요!`],
+    300: ['male', 'surprised', '당신과 망치를 번갈아 보며 입을 떡 벌린다.', () => '삼백 번이요? 누나, 이 분 진짜예요!'],
+    500: ['female', 'shy', '한참 말없이 당신을 보다가, 두 손을 들어 보인다.', who => `오백 번. …졌어요. 그 망치, 이제 ${who} 거 하세요.`],
+};
+const MORU_CAMEO_POOL = [
+    ['male', 'smile', '누나 쪽을 돌아보며 손나팔을 만든다.', () => '누나! 여기 망치 도둑이요!'],
+    ['female', 'neutral', '당신의 손목을 슬쩍 붙잡는다.', who => `${who}, 손목 나가요. 진짜로.`],
+    ['male', 'surprised', '자기도 모르게 주먹을 쥐었다 편다.', () => '깡! …아, 저도 모르게 따라 했어요.'],
+    ['female', 'shy', '괜히 앞치마 끈을 만지작거린다.', () => '…그렇게 열심히 두드리면 제가 할 일이 없잖아요.'],
+    ['male', 'neutral', '작업대에 턱을 괴고 당신을 올려다본다.', () => '벼릴 게 없으면 저희랑 수다라도 떨어요.'],
+    ['female', 'surprised', '망치 소리에 놀라 집게를 떨어뜨린다.', () => '깜짝이야! …방금 그거, 제 발등에 떨어질 뻔했거든요?'],
+    ['male', 'shy', '당신 옆에 물 한 잔을 슬쩍 놓아 둔다.', who => `${who}, 물이라도 마시면서 해요. 대장간은 원래 목마른 곳이에요.`],
+    ['female', 'smile', '당신의 망치질을 보며 한쪽 입꼬리를 올린다.', () => '…자세는 좀 나아졌네요. 칭찬 아니에요.'],
+];
+let lastCameoPick = null; // 무작위 대사가 연달아 같지 않게
+
+function moruCameoAt(taps) {
+    let pick = MORU_CAMEOS[taps];
+    if (!pick && taps > 200 && taps % 20 === 0) {
+        pick = pickRandom(MORU_CAMEO_POOL.filter(item => item !== lastCameoPick));
+        lastCameoPick = pick;
+    }
+    if (!pick) return null;
+    const [gender, face, action, line] = pick;
+    const who = String(getSettings()?.supporterUserName || '').trim() || '작가님';
+    // 숨은 칭호를 막 얻은 횟수면 카드에 함께 표시
+    const title = HAMMER_TITLES.find(item => item.min === taps);
+    return { gender, face, action, text: line(who), badge: title ? `숨은 칭호 · ${title.name}` : '' };
+}
+
+function hammerTitleOf(taps) {
+    let title = null;
+    HAMMER_TITLES.forEach(item => { if (taps >= item.min) title = item; });
+    return title;
+}
+
+// 대장간 창 아래쪽 가운데에 [얼굴 이름·대사] 한 줄 — 잠깐 떴다 사라짐 (누르면 바로 닫힘, 토스트와 안 겹치게 아래)
+function showMoruCameo({ gender, face, action, text, badge }) {
+    const container = document.querySelector('#persona-forge-popup .pf-container');
+    if (!container) return;
+    $('.pf-moru-cameo').remove();
+    clearTimeout(showMoruCameo.timer);
+    const rect = container.getBoundingClientRect();
+    const $cameo = $(`
+        <div class="pf-moru-cameo" role="status">
+            <span class="pf-support-avatar" aria-hidden="true">${noticeAvatarHtml(gender, face)}</span>
+            <span class="pf-moru-cameo-text">
+                <span class="pf-moru-cameo-name">${escapeHtml(supporterName(gender))}</span>
+                ${action ? `<span class="pf-moru-cameo-action">${escapeHtml(action)}</span>` : ''}
+                <span>${escapeHtml(text)}</span>
+                ${badge ? `<span class="pf-moru-cameo-badge"><i class="fa-solid fa-award"></i> ${escapeHtml(badge)}</span>` : ''}
+            </span>
+        </div>`)
+        .css({ left: rect.left + rect.width / 2, bottom: Math.max(16, window.innerHeight - rect.bottom + 40) });
+    const hide = () => {
+        clearTimeout(showMoruCameo.timer);
+        $cameo.addClass('pf-leaving');
+        setTimeout(() => $cameo.remove(), 250);
+    };
+    $cameo.on('click', hide);
+    $('#persona-forge-popup').append($cameo);
+    showMoruCameo.timer = setTimeout(hide, badge ? 5200 : 4200);
+}
+
+// 깡 — 쇠 치는 짧은 소리 (완료 알림음을 끄면 같이 꺼짐), 연타해도 겹쳐 쌓이지 않게 앞소리는 바로 줄임
+let lastClang = null;
+function playClang() {
+    if (getSettings()?.completionSound === false || !audioContext) return;
+    try {
+        if (audioContext.state !== 'running') audioContext.resume().catch(() => {});
+        const now = audioContext.currentTime;
+        if (lastClang) {
+            lastClang.gain.cancelScheduledValues(now);
+            lastClang.gain.setTargetAtTime(0.0001, now, 0.012);
+        }
+        const master = audioContext.createGain();
+        master.gain.setValueAtTime(0.0001, now);
+        master.gain.exponentialRampToValueAtTime(0.06, now + 0.004);
+        master.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
+        master.connect(audioContext.destination);
+        // 서로 딱 맞지 않는 배음 몇 개 — 조금씩 흔들어 매번 똑같지 않게
+        for (const [frequency, level] of [[1250, 1], [2980, 0.55], [4430, 0.3]]) {
+            const oscillator = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            oscillator.frequency.value = frequency * (0.98 + Math.random() * 0.04);
+            gain.gain.value = level;
+            oscillator.connect(gain).connect(master);
+            oscillator.start(now);
+            oscillator.stop(now + 0.36);
+        }
+        lastClang = master;
+    } catch { /* 소리를 낼 수 없는 환경 */ }
 }
 
 function forgeRankOf(count) {
@@ -4474,12 +4592,15 @@ function forgeRankOf(count) {
 
 function renderForgeRank() {
     const count = getSettings()?.forgedCount || 0;
+    const taps = getSettings()?.hammerTaps || 0;
     const { level, rank, next } = forgeRankOf(count);
+    // 숨은 칭호 (망치를 충분히 두드렸을 때만) — 기존 칭호 앞에 짧게, 망치질 횟수도 그때부터 보임
+    const hidden = hammerTitleOf(taps);
     $('#pf-forge-rank').attr('data-level', level);
-    $('#pf-forge-rank-name').text(rank.name);
-    $('#pf-forge-rank-count').text(count
+    $('#pf-forge-rank-name').html(`${hidden ? `<span class="pf-forge-rank-hidden">${escapeHtml(hidden.name)}</span> ` : ''}${escapeHtml(rank.name)}`);
+    $('#pf-forge-rank-count').text((count
         ? `벼려낸 인물 ${count}명${next ? ` · 다음 칭호까지 ${next.min - count}명` : ''}`
-        : '아직 벼려낸 인물이 없습니다');
+        : '아직 벼려낸 인물이 없습니다') + (hidden ? ` · 망치질 ${taps.toLocaleString()}회` : ''));
 }
 
 async function seedForgedCount() {
@@ -5018,6 +5139,24 @@ async function onMoreMenuAction() {
         resetSettingValues();
         afterBulkChange();
         showToast('success', '설정값을 초기화했습니다.');
+        return;
+    }
+    if (action === 'reset-rank') {
+        // 칭호만 처음으로 — 벼려낸 인물 수는 0 (비워 두면 기록 수로 다시 세므로), 망치질 횟수(숨은 칭호)도 0
+        const settings = getSettings();
+        const forged = settings.forgedCount || 0;
+        const taps = settings.hammerTaps || 0;
+        const ok = await confirmDialog('칭호 초기화',
+            `<p>칭호를 처음(${escapeHtml(FORGE_RANKS[0].name)})으로 되돌립니다.</p>`
+            + listHtml([`벼려낸 인물 수 ${forged}명 → 0명`, `망치질 ${taps.toLocaleString()}회 → 0회 (숨은 칭호 포함)`])
+            + '<p>유지: 기록, 모든 설정과 프롬프트</p>',
+            '초기화');
+        if (!ok) return;
+        settings.forgedCount = 0;
+        settings.hammerTaps = 0;
+        saveSettings();
+        renderForgeRank();
+        showToast('success', '칭호를 초기화했습니다.');
         return;
     }
     if (action === 'reset-history') {
