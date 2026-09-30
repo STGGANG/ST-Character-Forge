@@ -3362,17 +3362,26 @@ function supportChatForSave(chat) {
 
 // 기록 자동 저장 — 바뀐 결과를 모아 두었다가 잠시 뒤 한 번에 (그사이 다른 결과를 불러와도 원래 기록에)
 const pendingSupportSaves = new Set();
+// 대화는 기록 자동 저장 설정과 상관없이, 결과가 기록에 있으면 늘 그 기록에 저장
 const flushSupportSaves = debounce(async () => {
     const gens = [...pendingSupportSaves];
     pendingSupportSaves.clear();
-    if (!getSettings().autoSaveHistory) return;
     for (const gen of gens) {
-        if (!gen.historyId) continue;
+        if (gen.supportChatLoadFailed) continue; // 불러오기에 실패한 대화 — 기존 파일을 덮어쓰지 않게
+        if (!gen.historyId) {
+            // 기록에 없는 결과 — 대화를 붙일 곳이 없음 (한 번만 알림)
+            if (!gen.supportUnsavedNoticed && supportChatForSave(gen.supportChat)) {
+                gen.supportUnsavedNoticed = true;
+                showToast('info', '이 결과는 기록에 없어 모루 남매와의 대화가 저장되지 않습니다. "기록에 저장"을 누르면 대화도 함께 저장됩니다.');
+            }
+            continue;
+        }
         try {
             // 대화 파일만 다시 씀 (기록 전체 파일은 건드리지 않음)
             await saveSupportChat(gen.historyId, supportChatForSave(gen.supportChat) || null, gen.supportGender);
         } catch (error) {
             logError('saveSupportChat', error);
+            showToast('error', `모루 남매와의 대화를 저장하지 못했습니다: ${error.message}`);
         }
     }
 }, 800);
@@ -3614,7 +3623,10 @@ async function syncProfileToHistory(gen = state.currentGeneration) {
             kind: gen.resultKind || 'original',
         });
         // 기록이 지워졌으면 새로 저장 (그사이 다른 결과를 불러왔으면 건너뜀)
-        if (!found && gen === state.currentGeneration) gen.historyId = await addHistory(historyEntryFromCurrent(defaultHistoryName()));
+        if (!found && gen === state.currentGeneration) {
+            gen.historyId = await addHistory(historyEntryFromCurrent(defaultHistoryName()));
+            gen.supportChatLoadFailed = false;
+        }
         updateHistoryUI();
     } catch (error) {
         logError('syncProfileToHistory', error);
@@ -3633,6 +3645,7 @@ async function syncGreetingToHistory() {
         });
         if (!found && gen.greeting?.text) {
             gen.historyId = await addHistory(historyEntryFromCurrent(defaultHistoryName()));
+            gen.supportChatLoadFailed = false;
         }
         updateHistoryUI();
     } catch (error) {
@@ -3968,6 +3981,7 @@ async function onSaveHistoryClick() {
         const custom = name.trim() !== defaultHistoryName();
         if (custom) entry.customName = true;
         gen.historyId = await addHistory(entry);
+        gen.supportChatLoadFailed = false; // 새 기록은 지금 대화를 자기 대화로 가짐
         gen.customTitle = custom ? name.trim() : '';
         renderResultTitle(gen);
         showToast('success', '기록에 저장되었습니다.');
@@ -4341,6 +4355,15 @@ async function onHistoryLoad() {
 
     const isCustom = item.templateId === 'custom'
         || ([MIRROR_TEMPLATE.id, 'manual'].includes(item.templateId) && countMainSections(item.fullText) === 0);
+    // 대화 파일을 못 읽으면 빈 대화로 두되 저장은 막음 (그대로 이어 쓰면 기존 대화 파일을 덮어쓰므로)
+    let supportChat = [];
+    let supportChatLoadFailed = false;
+    try {
+        supportChat = await loadSupportChat(item, { strict: true });
+    } catch (error) {
+        supportChatLoadFailed = true;
+        showToast('warning', `모루 남매와의 대화를 불러오지 못했습니다 (${error.message}). 기존 대화를 지키려고 이 기록의 대화는 저장하지 않습니다. 잠시 뒤 기록을 다시 불러와 주십시오.`);
+    }
     state.currentGeneration = {
         mode: itemMode,
         noTarget: !!item.noTarget,
@@ -4351,7 +4374,8 @@ async function onHistoryLoad() {
         conceptText: item.conceptText || '',
         ...greetingsFromHistory(item),
         worldOnly: !!item.worldOnly,
-        supportChat: await loadSupportChat(item), // 대화 파일(또는 예전 기록 안의 대화)에서 — 기록 목록과는 따로인 사본
+        supportChat, // 대화 파일(또는 예전 기록 안의 대화)에서 — 기록 목록과는 따로인 사본
+        supportChatLoadFailed,
         supportGender: item.supportGender === 'male' || item.supportGender === 'female' ? item.supportGender : '',
         historyId: item.id,
         customTitle: item.customName ? item.name : '',
@@ -4434,8 +4458,20 @@ async function onHistoryClear() {
     }
 }
 
+// 내보내기용 기록 — 대화 파일을 못 읽으면 대화가 빠진 채 내보내지 않고 멈춤
+async function exportHistoryItemsOrWarn() {
+    try {
+        return await exportHistoryItems();
+    } catch (error) {
+        logError('exportHistory', error);
+        showToast('error', `내보내기를 멈췄습니다: ${error.message}. 대화가 빠진 백업이 되지 않도록 했습니다. 잠시 뒤 다시 시도하십시오.`);
+        return null;
+    }
+}
+
 async function onHistoryExport() {
-    const history = await exportHistoryItems(); // 모루 남매와의 대화도 합쳐서
+    const history = await exportHistoryItemsOrWarn(); // 모루 남매와의 대화도 합쳐서
+    if (!history) return;
     if (!history.length) {
         showToast('warning', '내보낼 기록이 없습니다.');
         return;
@@ -5139,7 +5175,8 @@ function downloadJson(data, fileName) {
 }
 
 async function exportFullBackup() {
-    const history = await exportHistoryItems(); // 모루 남매와의 대화도 합쳐서
+    const history = await exportHistoryItemsOrWarn(); // 모루 남매와의 대화도 합쳐서
+    if (!history) return;
     downloadJson({
         type: 'persona-forge-backup',
         version: 1,

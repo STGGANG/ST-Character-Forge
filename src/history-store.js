@@ -258,13 +258,15 @@ function migrateChats() {
 }
 
 // 기록의 대화 불러오기 (예전 형식이면 기록 안의 것, 새 형식이면 대화 파일)
-export async function loadSupportChat(item) {
+// strict: 대화 파일을 못 읽으면 빈 대화 대신 오류로 (빈 대화로 이어 쓰면 기존 파일을 덮어쓰게 되므로)
+export async function loadSupportChat(item, { strict = false } = {}) {
     if (Array.isArray(item?.supportChat)) return structuredClone(item.supportChat);
     if (!item?.supportChatFile) return [];
     try {
         return await readChatFile(item.id) || [];
     } catch (error) {
         logError('loadSupportChat', error);
+        if (strict) throw error;
         return [];
     }
 }
@@ -297,7 +299,7 @@ export async function exportHistoryItems() {
     for (const item of list) {
         const copy = structuredClone(item);
         if (copy.supportChatFile) {
-            const chat = await loadSupportChat(item);
+            const chat = await loadSupportChat(item, { strict: true });
             delete copy.supportChatFile;
             if (chat.length) copy.supportChat = chat;
         }
@@ -362,7 +364,7 @@ export async function duplicateHistory(id) {
     // 대화 파일이 있으면 사본용으로 먼저 복사
     const original = (cache || []).find(item => item.id === id);
     if (original?.supportChatFile) {
-        const chat = await loadSupportChat(original);
+        const chat = await loadSupportChat(original, { strict: true });
         if (chat.length) await writeChatFile(newCopyId, chat);
     }
     await mutate(list => {
