@@ -2820,9 +2820,15 @@
     }
 
     .pf-support-theirs .pf-support-group,
-    .pf-support-theirs .pf-support-actions {
+    .pf-support-theirs .pf-support-actions,
+    .pf-support-theirs .pf-support-rewrite-foot {
         grid-column: 1 / -1;
         max-width: 94%;
+    }
+
+    .pf-support-theirs.pf-support-rewriting .pf-support-group,
+    .pf-support-theirs.pf-support-rewriting .pf-support-rewrite-foot {
+        max-width: 100%;
     }
 
     .pf-support-theirs .pf-support-group {
@@ -3109,6 +3115,34 @@
 .persona-forge-popup .pf-support-actions button:disabled {
     opacity: .35;
     cursor: default;
+}
+
+/* 메시지 고치기 — 말풍선 자리에 입력칸 (변경안 카드는 그대로), 아래에 취소·저장 */
+.pf-support-rewriting .pf-support-stack {
+    flex: 1;
+    max-width: 100%;
+    align-items: stretch;
+}
+
+.pf-support-rewriting .pf-support-group {
+    align-items: stretch;
+}
+
+.persona-forge-popup .pf-support-rewrite-input {
+    width: 100%;
+    min-height: 44px;
+    resize: none;
+    padding: 9px 13px !important;
+    border-radius: 16px !important;
+    font-size: .9em;
+    line-height: 1.6 !important;
+}
+
+.pf-support-rewrite-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 4px;
 }
 
 /* 다시 받은 답 넘겨 보기 ‹ 2/3 › */

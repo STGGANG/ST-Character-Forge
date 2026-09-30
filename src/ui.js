@@ -164,6 +164,7 @@ const UPDATE_NOTES = [
     '기록 보관 개수가 200개로 늘었고, 가득 차기 전에 미리 알려 줍니다.',
     '프롬프트 탭의 항목 이름을 [페르소나] · [봇] · [공통]처럼 보기 쉽게 정리했습니다.',
     '직접 편집 · 섹션 재생성 · 바로 적용한 내용이 기록에 저장되지 않던 문제를 고쳤습니다.',
+    '모루 남매와의 대화에서 내 메시지와 남매의 대사·서술을 고칠 수 있습니다.',
 ];
 
 // 쌍둥이 기본 이미지 (직접 올린 이미지가 있으면 그것)
@@ -455,6 +456,19 @@ export function bindUIEvents() {
     });
     $root.on('click', '.pf-support-delete', onSupportDelete);
     $root.on('click', '.pf-support-copy', onSupportCopy);
+    $root.on('click', '.pf-support-rewrite', onSupportRewriteStart);
+    $root.on('click', '.pf-support-rewrite-save', onSupportRewriteSave);
+    $root.on('click', '.pf-support-rewrite-cancel', onSupportRewriteCancel);
+    $root.on('input', '.pf-support-rewrite-input', function () { growRewriteInput(this); });
+    $root.on('keydown', '.pf-support-rewrite-input', (e) => {
+        if (e.key === 'Escape') {
+            e.stopPropagation(); // 대장간 창까지 닫히지 않게
+            onSupportRewriteCancel();
+        } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !isImeComposing(e)) {
+            e.preventDefault();
+            onSupportRewriteSave();
+        }
+    });
     $root.on('click', '.pf-prompt-scope-btn', onPromptScopeChange);
 
     $root.on('change', '#pf-max-tokens', function () {
@@ -2805,6 +2819,7 @@ let supportRenderedCount = 0; // 새로 붙은 말풍선만 움직이게
 let pendingAvatarFace = 'neutral'; // 이미지를 올릴 표정 칸
 let supportRegenTarget = null; // 다시 받는 중인 마지막 답 (그동안 화면에서 가리고 점 세 개)
 let supportSwiped = false; // 버전을 넘길 때 마지막 답만 살짝 움직이게
+let supportRewrite = null; // 고치는 중인 메시지 { message, gen, drafts }
 let supportTouch = null;
 const SUPPORT_LOG_ROOM = 100; // 대화창 아래 입력칸·여백 몫
 // 긴 대화는 최근 티키타카 5쌍(내 말 + 답, 메시지 10개)부터 보여 주고, 위쪽 "이전 대화 더 보기"로 5쌍씩 더
@@ -3057,9 +3072,9 @@ function growSupportInput(el) {
     el.style.height = `${Math.min(el.scrollHeight + 2, 140)}px`;
 }
 
-// 모델 답을 글과 변경안(<edit>)으로 나눔 — 형식이 틀리면 전부 글로 보여 줌
-function parseSupportText(text) {
-    const parts = [];
+// 모델 답을 원래 글 조각 그대로 글과 변경안(<edit>)으로 나눔 — 형식이 틀리면 전부 글
+function splitSupportText(text) {
+    const pieces = [];
     const pattern = /<edit\b([^>]*)>([\s\S]*?)<\/edit>/gi;
     let last = 0;
     let match;
@@ -3067,9 +3082,10 @@ function parseSupportText(text) {
     while ((match = pattern.exec(text))) {
         const revised = tag(match[2], 'revised');
         if (!revised) continue;
-        if (match.index > last) parts.push({ type: 'text', text: text.slice(last, match.index) });
-        parts.push({
+        if (match.index > last) pieces.push({ type: 'text', raw: text.slice(last, match.index) });
+        pieces.push({
             type: 'edit',
+            raw: match[0],
             target: match[1].match(/target\s*=\s*"([^"]*)"/i)?.[1]?.trim() || '',
             original: tag(match[2], 'original'),
             revised,
@@ -3077,9 +3093,28 @@ function parseSupportText(text) {
         });
         last = pattern.lastIndex;
     }
-    if (last < text.length) parts.push({ type: 'text', text: text.slice(last) });
-    return parts.map(part => (part.type === 'text' ? { ...part, text: part.text.trim() } : part))
+    if (last < text.length) pieces.push({ type: 'text', raw: text.slice(last) });
+    return pieces;
+}
+
+// 화면에 보일 조각 — 빈 글 조각은 빼고
+function parseSupportText(text) {
+    return splitSupportText(text)
+        .map(piece => (piece.type === 'text' ? { type: 'text', text: piece.raw.trim() } : piece))
         .filter(part => part.type !== 'text' || part.text);
+}
+
+// 고친 글(말풍선 순서대로)을 제자리에 — 변경안 블록은 원래 모양 그대로, 비운 말풍선은 빠짐
+function rewriteSupportText(text, values) {
+    let textIndex = -1;
+    return splitSupportText(text).map(piece => {
+        if (piece.type === 'edit' || !piece.raw.trim()) return piece.raw;
+        textIndex++;
+        const value = String(values[textIndex] ?? piece.raw).trim();
+        if (!value) return '\n';
+        // 앞뒤 줄바꿈은 그대로 (변경안 블록과 붙지 않게)
+        return piece.raw.match(/^\s*/)[0] + value + piece.raw.match(/\s*$/)[0];
+    }).join('').trim();
 }
 
 // 변경안 카드의 글 — 원래 모양 그대로 (줄 앞 공백·들여쓰기도 살림, CSS pre-wrap)
@@ -3133,7 +3168,7 @@ function collapseSupportSwipes(message) {
 }
 
 function stepSupportSwipe(step) {
-    if (supportController) return;
+    if (supportController || supportRewrite) return;
     const message = supportChat().at(-1);
     if (message?.role !== 'assistant' || !(message.swipes?.length > 1)) return;
     const next = (message.swipe ?? message.swipes.length - 1) + step;
@@ -3183,9 +3218,9 @@ function supportEditHtml(edit, index, editIndex, status) {
 }
 
 // 서포터 쪽: 프로필 이미지(답마다 그 답의 표정) + 이어지는 답의 첫 번째에만 이름
-function supportTheirsHtml({ face, showName, isNew, swipeable, body }) {
+function supportTheirsHtml({ face, showName, isNew, swipeable, rewriting, body }) {
     return `
-        <div class="pf-support-msg pf-support-theirs${isNew ? ' pf-support-new' : ''}${swipeable ? ' pf-support-swipeable' : ''}">
+        <div class="pf-support-msg pf-support-theirs${isNew ? ' pf-support-new' : ''}${swipeable ? ' pf-support-swipeable' : ''}${rewriting ? ' pf-support-rewriting' : ''}">
             <span class="pf-support-avatar pf-support-avatar-chat" aria-hidden="true">${supportAvatarHtml(face)}</span>
             <div class="pf-support-stack">
                 ${showName ? `<span class="pf-support-name">${escapeHtml(currentSupporterName())}</span>` : ''}
@@ -3214,6 +3249,10 @@ function renderSupportLog({ scroll = 'end' } = {}) {
     const chat = supportChat();
     const log = document.getElementById('pf-support-log');
     const before = log ? { top: log.scrollTop, fromBottom: log.scrollHeight - log.scrollTop } : null;
+    // 고치는 중인 메시지 — 다른 결과로 바뀌었거나 지워졌으면 그만두고, 아니면 입력한 글을 살려 다시 그림
+    if (supportRewrite && (supportRewrite.gen !== state.currentGeneration || !chat.includes(supportRewrite.message))) supportRewrite = null;
+    const $drafts = $(log).find('.pf-support-rewrite-input');
+    if (supportRewrite && $drafts.length) supportRewrite.drafts = $drafts.map((_, el) => el.value).get();
     if (supportPageGen !== state.currentGeneration) {
         supportPageGen = state.currentGeneration;
         supportShowFrom = supportPageStart(chat, chat.length);
@@ -3231,7 +3270,9 @@ function renderSupportLog({ scroll = 'end' } = {}) {
         const isNew = index >= supportRenderedCount || (supportSwiped && index === lastIndex);
         const text = supportMessageText(message);
         const last = index === lastIndex && !supportController;
-        const swipes = !mine && last && message.swipes?.length > 1 ? message.swipes : null;
+        const parts = mine ? [{ type: 'text', text }] : parseSupportText(text);
+        const rewriting = supportRewrite?.message === message;
+        const swipes = !mine && last && !rewriting && message.swipes?.length > 1 ? message.swipes : null;
         const current = swipes ? (message.swipe ?? swipes.length - 1) : 0;
         const actions = [
             swipes ? `
@@ -3243,19 +3284,31 @@ function renderSupportLog({ scroll = 'end' } = {}) {
             !mine ? `<button class="pf-support-copy" data-index="${index}" title="복사"><i class="fa-regular fa-copy"></i></button>` : '',
             !mine && !message.local && last
                 ? `<button class="pf-support-regen" data-index="${index}" title="다시 답하기 (이전 답도 남아 좌우로 넘겨 볼 수 있습니다)"><i class="fa-solid fa-arrows-rotate"></i></button>` : '',
+            !message.local && parts.some(part => part.type === 'text')
+                ? `<button class="pf-support-rewrite" data-index="${index}" title="수정 (변경안 카드는 그대로)"><i class="fa-solid fa-pen"></i></button>` : '',
             !message.local ? `<button class="pf-support-delete" data-index="${index}" title="지우기"><i class="fa-solid fa-trash-can"></i></button>` : '',
         ].join('');
-        const parts = mine ? [{ type: 'text', text }] : parseSupportText(text);
         let editIndex = -1;
+        let textIndex = -1;
         const items = parts.map(part => {
-            if (part.type !== 'edit') return `<div class="pf-support-bubble">${mine ? escapeHtml(part.text) : supportMarkdownHtml(part.text)}</div>`;
+            if (part.type !== 'edit') {
+                textIndex++;
+                // 고치는 중이면 말풍선 자리에 입력칸 (변경안 카드는 그대로 둠)
+                if (rewriting) return `<textarea class="pf-support-rewrite-input" rows="2" aria-label="메시지 수정">${escapeHtml(supportRewrite.drafts?.[textIndex] ?? part.text)}</textarea>`;
+                return `<div class="pf-support-bubble">${mine ? escapeHtml(part.text) : supportMarkdownHtml(part.text)}</div>`;
+            }
             editIndex++;
             return supportEditHtml(part, index, editIndex, supportEditStatus(message, index, editIndex, part));
         }).join('');
-        const body = `<div class="pf-support-group">${items}</div>${actions ? `<div class="pf-support-actions">${actions}</div>` : ''}`;
-        if (!mine) return supportTheirsHtml({ face: message.face, showName, isNew, swipeable: !!swipes, body });
+        const foot = rewriting ? `
+            <div class="pf-support-rewrite-foot">
+                <button class="pf-support-rewrite-cancel pf-btn pf-small-btn" type="button">취소</button>
+                <button class="pf-support-rewrite-save pf-primary-btn pf-small-btn" type="button"><i class="fa-solid fa-check"></i> 저장</button>
+            </div>` : (actions ? `<div class="pf-support-actions">${actions}</div>` : '');
+        const body = `<div class="pf-support-group">${items}</div>${foot}`;
+        if (!mine) return supportTheirsHtml({ face: message.face, showName, isNew, swipeable: !!swipes, rewriting, body });
         return `
-            <div class="pf-support-msg pf-support-mine${isNew ? ' pf-support-new' : ''}">
+            <div class="pf-support-msg pf-support-mine${isNew ? ' pf-support-new' : ''}${rewriting ? ' pf-support-rewriting' : ''}">
                 <div class="pf-support-stack">${body}</div>
             </div>`;
     }).join('');
@@ -3266,6 +3319,7 @@ function renderSupportLog({ scroll = 'end' } = {}) {
     const more = hidden
         ? `<button class="pf-support-more" type="button"><i class="fa-solid fa-chevron-up"></i> 이전 대화 더 보기 <span>(메시지 ${hidden}개)</span></button>` : '';
     $('#pf-support-log').html(supportKnowsHtml() + more + html + typing);
+    $('#pf-support-log .pf-support-rewrite-input').each(function () { growRewriteInput(this); });
     supportRenderedCount = chat.length;
     supportSwiped = false;
     $('#pf-support-send')
@@ -3374,6 +3428,58 @@ function onSupportDelete() {
     supportRenderedCount = chat.length;
     renderSupportLog({ scroll: 'stay' });
     saveSupportChatSoon();
+}
+
+// 메시지 고치기 — 대사·서술만 (변경안 카드는 원문이 한 글자라도 바뀌면 바로 적용이 안 되므로 그대로)
+function onSupportRewriteStart() {
+    const message = supportChat()[Number($(this).attr('data-index'))];
+    if (!message || message.local) return;
+    // 고치던 메시지가 있으면 그걸 먼저 (말없이 버려지지 않게)
+    if (supportRewrite && supportRewrite.message !== message) {
+        showToast('warning', '고치던 메시지를 먼저 저장하거나 취소하십시오.');
+        $('#pf-support-log .pf-support-rewrite-input').first().trigger('focus');
+        return;
+    }
+    supportRewrite = { message, gen: state.currentGeneration, drafts: null };
+    renderSupportLog({ scroll: 'stay' });
+    const first = $('#pf-support-log .pf-support-rewrite-input')[0];
+    if (first) {
+        first.focus({ preventScroll: true });
+        first.setSelectionRange(first.value.length, first.value.length);
+        first.closest('.pf-support-msg')?.scrollIntoView({ block: 'nearest' });
+    }
+}
+
+function onSupportRewriteSave() {
+    const rewrite = supportRewrite;
+    if (!rewrite) return;
+    const message = rewrite.message;
+    const values = $('#pf-support-log .pf-support-rewrite-input').map((_, el) => el.value).get();
+    const next = message.role === 'user'
+        ? String(values[0] ?? '').trim()
+        : rewriteSupportText(supportMessageText(message), values);
+    if (!next) {
+        showToast('warning', '내용이 비어 있습니다. 메시지를 지우려면 휴지통 버튼을 누르십시오.');
+        return;
+    }
+    message.text = next;
+    // 다시 받은 답이면 지금 고른 버전도 같이 (버전을 넘겼다 돌아와도 고친 글로)
+    if (Array.isArray(message.swipes) && message.swipes[message.swipe]) message.swipes[message.swipe].text = next;
+    supportRewrite = null;
+    renderSupportLog({ scroll: 'stay' });
+    saveSupportChatSoon(rewrite.gen);
+}
+
+function onSupportRewriteCancel() {
+    if (!supportRewrite) return;
+    supportRewrite = null;
+    renderSupportLog({ scroll: 'stay' });
+}
+
+// 고치는 입력칸은 글 길이에 맞춰 늘어나되 너무 길면 안에서 스크롤
+function growRewriteInput(el) {
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight + 2, 320)}px`;
 }
 
 async function onSupportCopy() {
