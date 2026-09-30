@@ -568,6 +568,7 @@ export function bindUIEvents() {
     $root.on('click', '.pf-history-copy', onHistoryCopy);
     $root.on('click', '.pf-history-duplicate', onHistoryDuplicate);
     $root.on('click', '.pf-history-fav', onHistoryFavorite);
+    $root.on('click', '#pf-record-rename-btn', onRecordRename);
     $root.on('click', '#pf-history-prev', () => changeHistoryPage(-1));
     $root.on('click', '#pf-history-next', () => changeHistoryPage(1));
     $root.on('click', '.pf-history-delete', onHistoryDelete);
@@ -2324,6 +2325,7 @@ function renderResultTitle(data = state.currentGeneration) {
         note = data.noTarget ? worldInfoNote(data.wiNames) : `참고: ${data.charName}`;
     }
     if (data.templateId === 'manual') note = '직접 추가';
+    if (data.customTitle) name = data.customTitle; // 기록 이름을 직접 바꾼 결과
     const ref = note ? ` <span class="pf-result-ref">· ${escapeHtml(note)}</span>` : '';
     const icon = data.worldOnly ? 'fa-earth-asia' : (isBot ? 'fa-robot' : 'fa-user');
     $('#pf-result-char-name').html(`<i class="fa-solid ${icon}"></i> ${escapeHtml(name)}${ref}`);
@@ -3177,6 +3179,18 @@ function collapseSupportSwipes(message) {
     delete message.swipe;
 }
 
+// 다시 받은 답 중 지금 보고 있는 버전만 지우기 — 하나만 남으면 보통 답으로
+function deleteCurrentSwipe(message) {
+    if (!(message?.swipes?.length > 1)) return;
+    const index = message.swipe ?? message.swipes.length - 1;
+    message.swipes.splice(index, 1);
+    selectSupportSwipe(message, Math.min(index, message.swipes.length - 1));
+    if (message.swipes.length === 1) collapseSupportSwipes(message);
+    supportSwiped = true;
+    renderSupportLog({ scroll: 'stay' });
+    saveSupportChatSoon();
+}
+
 function stepSupportSwipe(step) {
     if (supportController || supportRewrite) return;
     const message = supportChat().at(-1);
@@ -3429,11 +3443,25 @@ function onSupportRegenerate() {
     requestSupportReply(chat[index]);
 }
 
-function onSupportDelete() {
+async function onSupportDelete() {
     if (supportController) return;
     const chat = supportChat();
-    const index = Number($(this).attr('data-index'));
-    if (!chat[index] || chat[index].local) return;
+    const message = chat[Number($(this).attr('data-index'))];
+    if (!message || message.local) return;
+    // 다시 받은 답이 여러 개면 — 지금 보고 있는 버전만 지울지, 메시지 전체를 지울지 고름
+    if (message.swipes?.length > 1) {
+        const current = (message.swipe ?? message.swipes.length - 1) + 1;
+        const choice = await chooseDialog('답 지우기',
+            `<p>이 답에는 다시 받은 버전이 ${message.swipes.length}개 있습니다. 지금 보고 있는 ${current}번째 버전만 지울지, 메시지 전체를 지울지 고르십시오.</p>`,
+            [{ key: 'version', text: `${current}번째 버전만 지우기` }, { key: 'all', text: '메시지 전체 지우기', icon: 'fa-trash-can' }]);
+        if (!choice || supportController || !chat.includes(message)) return;
+        if (choice === 'version') {
+            deleteCurrentSwipe(message);
+            return;
+        }
+    }
+    const index = chat.indexOf(message);
+    if (index < 0) return;
     chat.splice(index, 1);
     supportRenderedCount = chat.length;
     renderSupportLog({ scroll: 'stay' });
@@ -3935,7 +3963,13 @@ async function onSaveHistoryClick() {
     if (!name) return;
 
     try {
-        state.currentGeneration.historyId = await addHistory(historyEntryFromCurrent(name));
+        const gen = state.currentGeneration;
+        const entry = historyEntryFromCurrent(name);
+        const custom = name.trim() !== defaultHistoryName();
+        if (custom) entry.customName = true;
+        gen.historyId = await addHistory(entry);
+        gen.customTitle = custom ? name.trim() : '';
+        renderResultTitle(gen);
         showToast('success', '기록에 저장되었습니다.');
         updateHistoryUI();
     } catch (error) {
@@ -4244,6 +4278,32 @@ async function onHistoryAddSave() {
     }
 }
 
+// 기록 이름 바꾸기 — 불러온 결과 화면의 제목 옆 버튼 (기록 목록에 보이는 제목만, 내용·대화는 그대로)
+async function onRecordRename() {
+    const id = state.currentGeneration?.historyId;
+    const item = id && await findHistoryItem(id);
+    if (!item) {
+        showToast('info', '기록에 저장된 결과가 아닙니다. 먼저 기록에 저장하십시오.');
+        return;
+    }
+    const current = historyDisplayName(item);
+    const name = String(await askText('기록 이름을 입력하십시오:', current) || '').trim();
+    if (!name || name === current) return;
+    try {
+        await updateHistory(id, { name, customName: true });
+        const gen = state.currentGeneration;
+        if (gen?.historyId === id) {
+            gen.customTitle = name;
+            renderResultTitle(gen);
+        }
+        await updateHistoryUI();
+        showToast('success', '기록 이름을 바꿨습니다.');
+    } catch (error) {
+        logError('historyRename', error);
+        showToast('error', `이름을 바꾸지 못했습니다: ${error.message}`);
+    }
+}
+
 async function onHistoryFavorite(e) {
     e.stopPropagation();
     const id = String($(this).attr('data-id'));
@@ -4294,6 +4354,7 @@ async function onHistoryLoad() {
         supportChat: await loadSupportChat(item), // 대화 파일(또는 예전 기록 안의 대화)에서 — 기록 목록과는 따로인 사본
         supportGender: item.supportGender === 'male' || item.supportGender === 'female' ? item.supportGender : '',
         historyId: item.id,
+        customTitle: item.customName ? item.name : '',
         sections: isCustom ? { _custom: { header: '', content: item.fullText } } : parseResponse(item.fullText),
         fullText: item.fullText,
         charName: item.charName,
@@ -5007,6 +5068,31 @@ const RESETTABLE_LABELS = {
 
 // 실리태번 확인 대화상자 (없으면 브라우저 기본 확인창)
 // 브라우저 기본 창은 "이 페이지의 추가 대화상자 차단"을 한 번 누르면 조용히 취소되므로 실리태번 창을 우선 씀
+// 버튼 여러 개 중 하나 고르기 — 고른 항목의 key (취소하면 null)
+// choices[0]은 확인 버튼 자리, 나머지는 추가 버튼
+async function chooseDialog(title, bodyHtml, choices) {
+    const context = getContext();
+    if (typeof context.callGenericPopup === 'function' && context.POPUP_TYPE) {
+        const custom = context.POPUP_RESULT?.CUSTOM1 ?? 1001;
+        const result = await context.callGenericPopup(
+            `<div class="pf-dialog">${title ? `<h3>${escapeHtml(title)}</h3>` : ''}${bodyHtml}</div>`,
+            context.POPUP_TYPE.CONFIRM, '',
+            {
+                okButton: choices[0].text,
+                cancelButton: '취소',
+                customButtons: choices.slice(1).map((choice, index) => ({ text: choice.text, icon: choice.icon, result: custom + index })),
+            },
+        );
+        if (result === (context.POPUP_RESULT?.AFFIRMATIVE ?? 1)) return choices[0].key;
+        return choices[1 + (result - custom)]?.key ?? null;
+    }
+    const plain = $('<div>').html(bodyHtml).text();
+    for (const choice of choices) {
+        if (confirm(`${title}\n\n${plain}\n\n→ ${choice.text}?`)) return choice.key;
+    }
+    return null;
+}
+
 async function confirmDialog(title, bodyHtml, okText, extraButtons = []) {
     const context = getContext();
     if (typeof context.callGenericPopup === 'function' && context.POPUP_TYPE) {

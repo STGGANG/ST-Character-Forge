@@ -31,7 +31,7 @@ function cleanExtensionTags(text) {
 // 모델이 결과를 감쌀 때 흉내 내는 태그 (결과 앞뒤에 있으면 제거)
 const WRAPPER_TAG_LINE = /^<\/?(?:output_format|task|current_profile|current_message|character_profile|source_text|sheet_template|reference|profile|persona_profile|persona|translation|greeting|opening_message|first_message|answer|response|result|output)>\s*$/i;
 
-function cleanGeneratedText(text) {
+export function cleanGeneratedText(text, { scene = false } = {}) {
     if (!text) return '';
     let cleaned = String(text)
         // 추론 내용이 본문에 섞여 온 경우
@@ -52,7 +52,69 @@ function cleanGeneratedText(text) {
     while (lines.length && WRAPPER_TAG_LINE.test(lines[lines.length - 1].trim())) lines.pop();
     cleaned = dropStrayHeaders(lines.join('\n'));
 
-    return cleaned.replace(/\n{3,}/g, '\n\n').trim();
+    return dropChatter(cleaned.replace(/\n{3,}/g, '\n\n').trim(), { scene });
+}
+
+// ===== 사족·거절 방어 =====
+// "이것만 출력" 지시에도 모델이 앞뒤에 붙이는 한두 줄짜리 말 (본문·대사와 헷갈리지 않게 작업 이야기를 할 때만)
+const LEAD_CHATTER = [
+    /^(?:(?:sure|certainly|of course|okay|ok|alright|absolutely)[,.!]?\s*)?(?:here(?:['’]s| is| are)|below (?:is|are)|i['’]ve (?:written|created|revised|translated|rewritten|updated)|this is)\b.*\b(?:profile|persona|character|greeting|opening|message|setting|world|translation|section|version|sheet)\b/i,
+    /(?:다음은|아래는|요청하신|작성한|작성했|완성한|완성했|번역한|번역했|수정한|수정했|다시 쓴).*(?:프로필|페르소나|캐릭터|그리팅|첫 메시지|세계관|설정|번역|섹션|시트)/,
+];
+// 끝 인사는 작업 이야기(수정·프로필 등)를 할 때만 — "원하시면 말씀해 주세요"가 대사일 수 있어서
+const TRAIL_OFFER = /(?:let me know|feel free|i hope (?:this|you)|hope this|if you(?:['’]d| would) like|would you like|want me to|i can (?:also |further )?(?:adjust|revise|change|expand|tweak)|필요하시면|원하시면|말씀해 ?주세요|수정해 ?드릴|바꿔 ?드릴|도움이 되|더 필요한|궁금한 점)/i;
+const TRAIL_TOPIC = /(?:profile|persona|character|section|changes?|adjust|revise|tweak|edit|modif|greeting|message|translation|프로필|페르소나|캐릭터|섹션|수정|변경|바꿔|조정|그리팅|메시지|번역)/i;
+// 면책성 메모 ("Note: this is fiction…")
+const TRAIL_DISCLAIMER = /^[(*_\[]*\s*(?:note|disclaimer|ooc|참고|주의|면책)\s*[:：].*(?:fiction|fictional|this (?:profile|greeting|content|message)|adult|픽션|허구|이 (?:프로필|그리팅|내용|메시지)|성인)/i;
+const SEPARATOR_LINE = /^(?:-{3,}|\*{3,}|_{3,})$/;
+
+// 짧고(두 줄·250자 이하), 헤더·목록·인용(대사)으로 시작하지 않는 문단만 사족 후보
+function isChatterShape(paragraph) {
+    const text = paragraph.trim();
+    const lines = text.split('\n');
+    return lines.length <= 2 && text.length <= 250 && !isHeaderLine(lines[0]) && !/^[-*•"“'‘「『]/.test(text);
+}
+
+function isLeadChatter(paragraph, scene) {
+    const text = paragraph.trim();
+    if (!isChatterShape(text) || !LEAD_CHATTER.some(pattern => pattern.test(text))) return false;
+    return !scene || /[:：]$/.test(text); // 그리팅은 "…입니다:"처럼 콜론으로 끝나는 머리말만
+}
+
+function isTrailChatter(paragraph, scene) {
+    const text = paragraph.trim();
+    if (!isChatterShape(text)) return false;
+    if (TRAIL_DISCLAIMER.test(text)) return true;
+    return !scene && TRAIL_OFFER.test(text) && TRAIL_TOPIC.test(text);
+}
+
+// 맨 앞·맨 뒤 문단이 사족이면 떼어 냄 (구분선도 함께) — 본문이 남을 때만
+// scene: 그리팅 (대사가 많아 더 조심스럽게)
+function dropChatter(text, { scene = false } = {}) {
+    const paragraphs = text.split(/\n{2,}/);
+    while (paragraphs.length > 1 && isLeadChatter(paragraphs[0], scene)) {
+        paragraphs.shift();
+        while (paragraphs.length > 1 && SEPARATOR_LINE.test(paragraphs[0].trim())) paragraphs.shift();
+    }
+    while (paragraphs.length > 1 && isTrailChatter(paragraphs.at(-1), scene)) {
+        paragraphs.pop();
+        while (paragraphs.length > 1 && SEPARATOR_LINE.test(paragraphs.at(-1).trim())) paragraphs.pop();
+    }
+    return paragraphs.join('\n\n').trim();
+}
+
+// 거절문 — 짧고, 사과·거절로 시작하며, 요청·정책·AI 이야기를 하는 답
+// (그리팅은 대사 속 "죄송해요, 요청하신…"과 헷갈리지 않게 정책·AI 이야기일 때만)
+const REFUSAL_START = /^(?:i['’]?m sorry|i am sorry|sorry|i apologi[sz]e|i can['’]?t|i cannot|i['’]?m (?:not able|unable)|i am (?:not able|unable)|i won['’]?t|i will not|as an ai|unfortunately|죄송|미안하지만|유감스럽|안타깝지만|저는 (?:ai|인공지능|어시스턴트)|해당 요청|이 요청|요청하신 (?:내용|콘텐츠|작업))/i;
+const REFUSAL_TOPIC = /\b(?:request|content|polic(?:y|ies)|guidelines?|appropriate|explicit|ai|assistant|comply|assist|help with)\b|요청|콘텐츠|정책|가이드라인|부적절|노골적|어시스턴트|인공지능|도와드리|제공(?:할|해 드릴) 수 없|작성(?:할|해 드릴) 수 없|할 수 없/i;
+const REFUSAL_TOPIC_STRICT = /\b(?:polic(?:y|ies)|guidelines?|as an ai|an ai|language model|assistant|content policy)\b|정책|가이드라인|어시스턴트|인공지능|언어 모델/i;
+
+export function looksLikeRefusal(text, { scene = false } = {}) {
+    const t = String(text || '').trim();
+    if (!t || t.length > 700 || !REFUSAL_START.test(t)) return false;
+    if (scene) return REFUSAL_TOPIC_STRICT.test(t);
+    // 프로필 쪽은 헤더가 하나라도 있으면 결과로 봄
+    return !/^\s*#{1,6}[ \t]+\S/m.test(t) && REFUSAL_TOPIC.test(t);
 }
 
 // 기본~Full·Choice 결과의 "# 이름 — Character Profile" 같은 제목 줄에서 꼬리표를 떼어 이름만 남김
@@ -374,17 +436,13 @@ export function guessWorldName(text) {
     return name.length <= 40 ? name : '';
 }
 
-// NSFW 지침 — 설정에서 켰을 때만 (번역 제외 모든 생성·서포터 대화의 역할 문단 뒤)
+// NSFW 지침 — 설정에서 켰을 때만 (번역 제외 모든 생성·서포터 대화)
+// 끝에 가까울수록 잘 따르므로 사용자 메시지의 작업 지시(<task>, 컨셉·수정 지시 포함) 바로 뒤, 출력 형식 앞에
+// (서포터 대화는 설정 자료(<material>) 뒤 — 시스템 프롬프트 맨 끝)
 function matureContentBlock() {
     if (!getSettings().matureContent) return '';
     const text = getPrompt('matureContent');
     return text ? wrap('smut_guidance', text) : '';
-}
-
-// 역할 문단 뒤에 NSFW 지침 (켰을 때만)
-function withMature(role) {
-    const mature = matureContentBlock();
-    return mature ? `${role}\n\n${mature}` : role;
 }
 
 // 작성 원칙 뒤에 붙는 공통 문체 규칙 (비어 있으면 없음)
@@ -394,7 +452,7 @@ function pushWritingStyle(parts) {
 }
 
 function buildCoreSystem(options = {}) {
-    const parts = [withMature(getPrompt('role'))];
+    const parts = [getPrompt('role')];
     const principles = getPrompt('principles');
     if (principles) parts.push(wrap('principles', principles));
     pushWritingStyle(parts);
@@ -427,7 +485,7 @@ function describeMirrorSource(charData, isBot) {
 }
 
 function buildBotCoreSystem(options = {}) {
-    const parts = [withMature(getPrompt('botRole'))];
+    const parts = [getPrompt('botRole')];
     const principles = getPrompt('botPrinciples');
     if (principles) parts.push(wrap('principles', principles));
     pushWritingStyle(parts);
@@ -454,7 +512,7 @@ function densityBlock({ worldOnly = false, fixedLayout = false } = {}) {
 
 // 봇 모드에서 캐릭터 없이 세계관만 만들 때 — 인물용 역할·원칙·자료 규칙 대신 세계관용
 function buildWorldCoreSystem(options = {}) {
-    const parts = [withMature(getPrompt('worldRole'))];
+    const parts = [getPrompt('worldRole')];
     const principles = getPrompt('worldPrinciples');
     if (principles) parts.push(wrap('principles', principles));
     pushWritingStyle(parts);
@@ -796,7 +854,7 @@ function buildGenerateRequest(config = {}) {
         else if (!isMirror) task += ' If you write several profiles, start each with its own `# Name` line.';
     }
 
-    const parts = [...sources, wrap('task', task)];
+    const parts = [...sources, wrap('task', task), matureContentBlock()].filter(Boolean);
     let fields = [];
     let finalLine;
     // 세계관 — 봇 모드에서 켰을 때만 (자유 입력·기존 캐릭터 참고는 양식이 정하므로 제외). 배경이 먼저라 프로필보다 앞에 씀
@@ -899,9 +957,10 @@ function buildRegenRequest(sectionKey, instruction = '') {
         ...sourceBlocksFor(gen, charData, isSelected),
         wrap('current_profile', gen.fullText),
         wrap('task', task),
+        matureContentBlock(),
         wrap('output_format', `${languageLine(gen.language, existingScope(gen))}\nFormat: The same format as the other sections of <current_profile>.`),
         `Output only the rewritten section, in ${lang.promptName}, starting with the line \`${header}\`.`,
-    ].join('\n\n');
+    ].filter(Boolean).join('\n\n');
 
     return {
         messages: [{ role: 'system', content: coreSystemForResult(gen) }, { role: 'user', content: user }],
@@ -928,9 +987,10 @@ ${wrap('instruction', normalizeMacros(instruction, charLabel))}
         ...sourceBlocksFor(gen, charData, isSelected),
         wrap('current_profile', gen.fullText),
         wrap('task', task),
+        matureContentBlock(),
         wrap('output_format', `${languageLine(gen.language, existingScope(gen))}\nFormat: The same format as <current_profile>.`),
         `Output the complete revised profile, in ${lang.promptName}, and nothing else.`,
-    ].join('\n\n');
+    ].filter(Boolean).join('\n\n');
 
     return { messages: [{ role: 'system', content: coreSystemForResult(gen) }, { role: 'user', content: user }] };
 }
@@ -940,11 +1000,11 @@ function greetingFrame(gen) {
     const rules = wrap('greeting_rules', getPrompt('greetingRules'));
     if (gen.worldOnly) {
         return {
-            system: `${withMature(WORLD_GREETING_ROLE)}\n\n${rules}\n\n${wrap('world_greeting_rules', getPrompt('worldGreetingRules'))}`,
+            system: `${WORLD_GREETING_ROLE}\n\n${rules}\n\n${wrap('world_greeting_rules', getPrompt('worldGreetingRules'))}`,
             source: wrap('world_setting', gen.fullText),
         };
     }
-    return { system: `${withMature(GREETING_ROLE)}\n\n${rules}`, source: wrap('character_profile', gen.fullText) };
+    return { system: `${GREETING_ROLE}\n\n${rules}`, source: wrap('character_profile', gen.fullText) };
 }
 
 function buildGreetingRequest(options = {}) {
@@ -985,10 +1045,11 @@ function buildGreetingRequest(options = {}) {
         ...buildBotSourceBlocks(charData, gen.personaId, { includeWorldInfo: isSelected }),
         greetingFrame(gen).source,
         wrap('task', task),
+        matureContentBlock(),
         wrap('output_format', `Language: Write in ${lang.promptName}, including dialogue. This holds whatever language the profile, the reference, or the user's instructions use; if the profile is in another language, render names in ${lang.promptName} the standard way. ${languageNotes(lang.promptName)}
 Format: The message exactly as it will appear in the chat: narration and dialogue only, with no title, labels, notes, or commentary. Leave out status panels, trackers, and other tagged blocks, even if the reference asks for them.`),
         `Write the opening message now, in ${lang.promptName}, and output only the message.`,
-    ].join('\n\n');
+    ].filter(Boolean).join('\n\n');
 
     return {
         messages: [
@@ -1019,10 +1080,11 @@ ${wrap('instruction', normalizeMacros(instruction, botName))}
         greetingFrame(gen).source,
         wrap('current_message', greeting.text),
         wrap('task', task),
+        matureContentBlock(),
         wrap('output_format', `Language: Write in ${lang.promptName}, including dialogue, unless the instruction asks for another language. ${languageNotes(lang.promptName)}
 Format: The complete revised message exactly as it will appear in the chat: narration and dialogue only, with no title, labels, notes, or commentary. Leave out status panels, trackers, and other tagged blocks, even if the reference asks for them.`),
         `Output the complete revised opening message, in ${lang.promptName}, and nothing else.`,
-    ].join('\n\n');
+    ].filter(Boolean).join('\n\n');
 
     return {
         messages: [
@@ -1180,10 +1242,10 @@ export function buildSupportRequest(chat = []) {
         profile,
         writerLines ? `${addressLine}\n${writerLines}` : addressLine,
         wrap('rules', `${getPrompt('supporterRules')}\n${SUPPORTER_FACE_RULE}`),
-        matureContentBlock(),
         wrap('craft_notes', craft),
         ...blocks,
         wrap('material', material, ` kind="${escapeAttr(supportMaterialKind(gen))}" language="${escapeAttr(lang.promptName)}"`),
+        matureContentBlock(),
     ].filter(Boolean).join('\n\n');
 
     const messages = [{ role: 'system', content: system }];
@@ -1384,7 +1446,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
     const add = (where, name, editable, desc, included = true, reason = '') => items.push({ where, name, editable, desc, included, reason });
     const density = DENSITY_LEVELS[settings.density] || DENSITY_LEVELS.default;
     const addStyle = () => add('system', '문체 규칙', true, '<writing_style> — 기계적 비유·과장된 비유·반복·낡은 야설 어휘 줄이기', !!getPrompt('writingStyle'), '비어 있음');
-    const addMature = () => add('system', 'NSFW 지침 (베타)', true, '<smut_guidance> — 역할 문단 뒤, 노골적인 내용을 더 적극적으로',
+    const addMature = () => add('user', 'NSFW 지침 (베타)', true, '<smut_guidance> — 작업 지시 뒤(출력 형식 앞), 노골적인 내용을 더 적극적으로',
         !!settings.matureContent && !!getPrompt('matureContent'), settings.matureContent ? '비어 있음' : '설정 탭에서 꺼짐');
     const addDensity = () => add('system', '분량', true,
         density.slot ? `<density> — ${density.label}: ${density.desc}` : '<density> — 밸런스형·압축형을 골랐을 때',
@@ -1424,7 +1486,6 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
         : add('user', '캐릭터 프로필', false, '<character_profile> — 지금 결과 전체', hasResult, '생성된 프로필 없음'));
     const greetingSystem = (note) => {
         add('system', '작성자 역할', false, worldOnly ? '세계관을 내레이션하는 롤플레이의 그리팅을 쓰는 작가 역할, 성인 픽션 안내' : '그리팅을 쓰는 작가 역할, 성인 픽션 안내, 참고 자료 취급');
-        addMature();
         add('system', '그리팅 작성 규칙', true, note);
         if (worldOnly) add('system', '세계관 그리팅 규칙', true, '<world_greeting_rules> — 주인공 대신 세계를 내레이션, 설명 대신 장면으로');
     };
@@ -1435,6 +1496,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
         greetingSource();
         add('user', '현재 그리팅', false, '<current_message> — 지금 그리팅', !!gen?.greeting?.text, '그리팅 없음');
         add('user', '작업 지시', false, '<task> — 입력한 수정 지시(<instruction>) 적용 규칙');
+        addMature();
         add('user', '출력 형식', false, '<output_format> — 언어, 채팅에 그대로 쓸 본문만');
         add('user', '마지막 확인', false, '전체를 고친 본문만 출력');
         return items;
@@ -1445,6 +1507,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
         addBotSources();
         greetingSource();
         add('user', '작업 지시', false, '<task> — 시점, 길이(문단 수 또는 직접 입력), 장면 컨셉(<scene_concept>, 적었을 때만)');
+        addMature();
         add('user', '출력 형식', false, '<output_format> — 언어, 채팅에 그대로 쓸 본문만');
         add('user', '마지막 확인', false, '언어와 "본문만 출력"을 한 줄로 다시 확인');
         return items;
@@ -1453,7 +1516,6 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
     if (isBot && worldOnly) {
         const guidelines = getPrompt('botGuidelines');
         add('system', '역할과 창작 맥락 (세계관만)', true, '세계관 설계자 역할, 성인 픽션 안내');
-        addMature();
         add('system', '작성 원칙 (세계관만)', true, '<principles> — 들어서기 쉽고, 장면을 움직일 거리와 일관된 규칙이 있는 세계', !!getPrompt('worldPrinciples'), '비어 있음');
         addStyle();
         add('system', '자료 규칙 (세계관만)', true, '<source_rules> — 참고 자료를 바탕으로 세계 넓히기, 충돌 시 우선순위');
@@ -1463,7 +1525,6 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
     } else if (isBot) {
         const guidelines = getPrompt('botGuidelines');
         add('system', '역할과 창작 맥락 (봇)', true, '봇 캐릭터 디자이너 역할, 성인 픽션 안내');
-        addMature();
         add('system', '작성 원칙 (봇)', true, '<principles> — 입체적이고 스스로 움직이는 인물을 만드는 기준', !!getPrompt('botPrinciples'), '비어 있음');
         addStyle();
         add('system', '자료 규칙 (봇)', true, '<source_rules> — 페르소나·기존 캐릭터·월드인포, 충돌 시 우선순위');
@@ -1473,7 +1534,6 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
     } else {
         const guidelines = getPrompt('guidelines');
         add('system', '역할과 창작 맥락 (페르소나)', true, '캐릭터 디자이너 역할, 성인 픽션 안내');
-        addMature();
         add('system', '작성 원칙 (페르소나)', true, '<principles> — 입체적인 인물을 만드는 기준', !!getPrompt('principles'), '비어 있음');
         addStyle();
         add('system', '자료 규칙 (페르소나)', true, '<source_rules> — 참고 자료·{{user}} 설정, 충돌 시 우선순위');
@@ -1504,6 +1564,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
         add('user', '컨셉 설명', false, '<concept> — 가이드 모드에서 입력한 컨셉',
             guided && !!conceptText.trim(), guided ? '컨셉 칸이 비어 있음' : '자유 생성 모드');
         add('user', '재생성 지시', false, '<extra_instructions> — 전체 재생성 때 입력한 새 지시', false, '전체 재생성에서만');
+        addMature();
         const settingOn = (worldOnly || !!settings.includeSetting) && getActiveSettingFields().length > 0;
         const addSetting = () => add('user', '세계관 설정 (봇)', true, '<output_format> 섹션 목록 맨 앞 — # Setting 설명 한 줄 (항목은 설정 탭에서 고른 것)',
             settingOn && !isSheet && !isMirror, !settingOn ? '설정 탭에서 꺼짐 또는 항목 없음' : '자유 입력·기존 캐릭터 참고(Mirror)에는 안 들어감');
@@ -1531,6 +1592,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
     } else {
         add('user', '작업 지시', false, '<task> — 입력한 수정 지시(<instruction>) 적용 규칙');
     }
+    addMature();
     add('user', '출력 형식', false, '<output_format> — 언어, 기존 서식 유지');
     add('user', '마지막 확인', false, '출력할 범위와 언어를 한 줄로 다시 확인');
     return items;
@@ -1544,8 +1606,14 @@ async function requestText(op, messages, label) {
     const { text, truncated } = await callGenerationAPI(messages, { signal: op.signal, label });
     if (!isCurrentOperation(op)) throw cancelledError();
 
-    const cleaned = cleanGeneratedText(text);
+    const scene = String(label).startsWith('그리팅');
+    const cleaned = cleanGeneratedText(text, { scene });
     if (!cleaned) throw new Error('API에서 빈 응답을 받았습니다.');
+    // 거절문이면 결과로 쓰지 않음 (화면·기록에 프로필처럼 남지 않게)
+    if (looksLikeRefusal(cleaned, { scene })) {
+        const snippet = cleaned.replace(/\s+/g, ' ').slice(0, 80);
+        throw new Error(`모델이 요청을 거절한 것 같습니다. 다시 시도하거나 다른 모델·연결 프로필로 시도해 보십시오. (받은 답: "${snippet}${cleaned.length > 80 ? '…' : ''}")`);
+    }
     return { text: cleaned, truncated };
 }
 

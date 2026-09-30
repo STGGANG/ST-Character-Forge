@@ -160,8 +160,19 @@ export async function testConnection(signal, { connectionProfile } = {}) {
 }
 
 let scriptModulePromise = null;
+// Gemini 응답의 글 조각(part)들을 원래대로 이어 붙임 (추론 조각은 뺌) — Gemini 응답이 아니면 null
+// 실리태번은 스트리밍이 아닐 때 조각 사이에 빈 줄을 넣고(낱말 중간에서 나뉘면 "## BAS\n\nICS"처럼 깨짐),
+// 스트리밍일 때는 한 번에 온 조각 중 첫 번째만 돌려줌(나머지 글이 빠짐) — 구글 SDK처럼 구분자 없이 이어 붙임
+function joinGeminiParts(parts) {
+    if (!Array.isArray(parts)) return null;
+    const texts = parts.filter(part => !part?.thought && typeof part?.text === 'string').map(part => part.text);
+    return texts.length ? texts.join('') : null;
+}
+
 async function extractText(raw, api) {
     if (typeof raw === 'string') return raw;
+    const gemini = joinGeminiParts(raw?.responseContent?.parts);
+    if (gemini !== null) return gemini;
     scriptModulePromise ??= import("../../../../../script.js").catch(() => ({}));
     const script = await scriptModulePromise;
     if (typeof script.extractMessageFromData === 'function') {
@@ -261,10 +272,11 @@ async function streamChatCompletion(context, payload, signal) {
         if (isStreamTruncation(parsed)) truncated = true;
         if (Array.isArray(parsed?.choices) && parsed.choices[0]?.index > 0) continue; // 여러 개를 요청한 경우의 나머지
         // 추론(thinking) 내용은 결과에 넣지 않고, 진행 표시에만 씀 (생각하는 동안 멈춘 것처럼 보이지 않게)
-        text += openai.getStreamingReply(parsed, replyState, {
+        const piece = openai.getStreamingReply(parsed, replyState, {
             chatCompletionSource: payload.chat_completion_source,
             overrideShowThoughts: true,
         }) || '';
+        text += joinGeminiParts(parsed?.candidates?.[0]?.content?.parts) ?? piece;
         state.progressListener?.(text.length, replyState.reasoning.length);
     }
     return { text, truncated, reasoningChars: replyState.reasoning.length };

@@ -199,7 +199,7 @@ function mutate(change) {
 }
 
 // supportChat(모루 남매와의 대화)은 따로 — 파일로 저장하고 기록에는 supportChatFile 표시만
-const OPTIONAL_FIELDS = ['kind', 'mode', 'refName', 'direction', 'personaId', 'greeting', 'greetings', 'worldOnly', 'supportGender', 'conceptText', 'noTarget', 'favorite', 'wiNames'];
+const OPTIONAL_FIELDS = ['kind', 'mode', 'refName', 'direction', 'personaId', 'greeting', 'greetings', 'worldOnly', 'supportGender', 'conceptText', 'noTarget', 'favorite', 'wiNames', 'customName'];
 
 // 새 기록에 대화 붙이기 — 파일로 먼저 저장하고 표시만 남김 (파일 저장이 안 되면 예전처럼 기록 안에)
 async function attachChat(entry, chat) {
