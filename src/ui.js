@@ -701,11 +701,19 @@ export function openPopup() {
     renderSupportIdentity();
     seedForgedCount();
     $('#persona-forge-popup').addClass('open');
-    requestAnimationFrame(fitSupportLogHeight); // 창이 보인 뒤에 높이를 잼
+    // 창이 보인 뒤에: 대화창 높이를 재고, 닫을 때 보던 자리로 (기기에 따라 숨겼다 열면 맨 위로 돌아감), 대화는 맨 끝으로
+    requestAnimationFrame(() => {
+        fitSupportLogHeight();
+        if (bodyScrollOnClose !== null) $('.pf-body').scrollTop(bodyScrollOnClose);
+        scrollSupportToEndIfOpen();
+    });
     showUpdateNoticeOnce(); // 설치·업데이트 후 확인을 누르기 전까지 (대장간 창 위에)
 }
 
+let bodyScrollOnClose = null;
+
 export function closePopup() {
+    bodyScrollOnClose = $('.pf-body').scrollTop();
     $('#persona-forge-popup').removeClass('open');
 }
 
@@ -725,6 +733,8 @@ function switchTab(tabName) {
     if (tabName === 'prompt') renderStructure();
     updateBusyIndicator();
     $body.scrollTop(previous === tabName ? $body.scrollTop() : (tabScroll[tabName] || 0));
+    // 다른 탭에 있는 동안 그려진 대화는 스크롤이 맨 위에 머물 수 있어 (기록 불러오기 등) 돌아올 때 맨 끝으로
+    if (tabName === 'generate' && previous !== 'generate') scrollSupportToEndIfOpen();
 }
 
 function scrollGenerateTabToTop() {
@@ -3035,6 +3045,10 @@ function scrollSupportToEnd() {
     const log = document.getElementById('pf-support-log');
     if (log) log.scrollTop = log.scrollHeight;
     updateSupportFade();
+}
+
+function scrollSupportToEndIfOpen() {
+    if ($('#pf-support-toggle').attr('aria-expanded') === 'true') scrollSupportToEnd();
 }
 
 // 입력칸은 내용에 맞춰 늘어나되 몇 줄까지만

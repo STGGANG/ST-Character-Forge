@@ -1277,7 +1277,7 @@ export function applySupportEdit(edit) {
         updateFromEditedText(next);
         return { kind, gen, before, after: gen.fullText };
     }
-    throw new Error('지금 결과에서 원문을 찾지 못했습니다. 이미 바뀌었거나, 원문이 조금 다르게 옮겨졌을 수 있습니다.');
+    throw new Error('지금 결과에서 원문을 찾지 못했습니다. 이미 바뀌었거나, 원문이 조금 다르게 옮겨졌을 수 있습니다. 남매에게 지금 글을 기준으로 다시 써 달라고 해 보십시오.');
 }
 
 // 적용한 뒤로 결과가 그대로일 때만 되돌릴 수 있음

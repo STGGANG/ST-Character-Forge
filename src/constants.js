@@ -1,7 +1,7 @@
 export const extensionName = "persona-forge";
 
 // manifest.json의 version과 같게 — 바뀌면 설치·업데이트 후 한 번 안내 창을 띄움
-export const EXTENSION_VERSION = '2.0.1';
+export const EXTENSION_VERSION = '2.0.2';
 
 // 글자 크기 — 대장간 창 전체(ui)와 모루 남매 대화(chat) 배율
 export const FONT_SCALES = {
