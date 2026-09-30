@@ -167,6 +167,7 @@ const UPDATE_NOTES = [
     '직접 편집 · 섹션 재생성 · 바로 적용한 내용이 기록에 저장되지 않던 문제를 고쳤습니다.',
     '모루 남매와의 대화에서 내 메시지와 남매의 대사·서술을 고칠 수 있습니다.',
     '캐릭터 생성과 모루 남매 프롬프트를 조금 더 다듬었습니다.',
+    '설정 탭(프로필 형식)에 NSFW 지침(베타) 켜기가 생겼습니다.',
 ];
 
 // 쌍둥이 기본 이미지 (직접 올린 이미지가 있으면 그것)
@@ -295,6 +296,11 @@ export function bindUIEvents() {
         const enabled = $(this).prop('checked');
         updateSetting('spoilerProtection', enabled);
         $('#pf-spoiler-note').toggle(enabled);
+    });
+
+    // NSFW 지침 — 요청을 보낼 때 켜져 있는지만 봄 (결과·대화에 따로 기억하지 않음)
+    $root.on('change', '#pf-mature-toggle', function () {
+        updateSetting('matureContent', $(this).prop('checked'));
     });
 
     $root.on('change', '#pf-stream-toggle', function () {
@@ -984,6 +990,7 @@ function updateSettingsUI() {
     $('#pf-spoiler-toggle').prop('checked', !!settings.spoilerProtection);
     $('#pf-spoiler-note').toggle(!!settings.spoilerProtection);
 
+    $('#pf-mature-toggle').prop('checked', !!settings.matureContent);
     $('#pf-stream-toggle').prop('checked', !!settings.streamRequests);
     $('#pf-density').val(DENSITY_LEVELS[settings.density] ? settings.density : 'default');
     updateDensityDesc();
@@ -4993,7 +5000,7 @@ const RESETTABLE_LABELS = {
     generationMode: '생성 모드', templatePreset: '캐릭터 설정 템플릿', customFields: '캐릭터 설정 — Choice 항목 선택·순서',
     language: '출력 언어', connectionProfile: 'API 프로필', maxTokens: '최대 출력 토큰',
     includeWorldInfo: '월드인포 켜기', cardFields: '참고할 카드 항목', autoSaveHistory: '기록 자동 저장',
-    spoilerProtection: '스포일러 방지', density: '분량', completionSound: '완료 알림음', includeSetting: '세계관 설정 켜기', includeCharacter: '캐릭터 설정 켜기', settingFields: '세계관 항목 선택·순서',
+    spoilerProtection: '스포일러 방지', matureContent: 'NSFW 지침', density: '분량', completionSound: '완료 알림음', includeSetting: '세계관 설정 켜기', includeCharacter: '캐릭터 설정 켜기', settingFields: '세계관 항목 선택·순서',
     supporterProfile: '대화형 서포터 연결 프로필', supporterGender: '대화 상대 기본값', supporterUserName: '나를 부를 이름',
     supporterUserGender: '내 성별', supporterUserIntro: '자기소개', uiFontSize: '글자 크기', chatFontSize: '대화 글자 크기', uiFontFamily: '글꼴',
 };

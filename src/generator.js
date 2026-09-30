@@ -374,6 +374,19 @@ export function guessWorldName(text) {
     return name.length <= 40 ? name : '';
 }
 
+// NSFW 지침 — 설정에서 켰을 때만 (번역 제외 모든 생성·서포터 대화의 역할 문단 뒤)
+function matureContentBlock() {
+    if (!getSettings().matureContent) return '';
+    const text = getPrompt('matureContent');
+    return text ? wrap('smut_guidance', text) : '';
+}
+
+// 역할 문단 뒤에 NSFW 지침 (켰을 때만)
+function withMature(role) {
+    const mature = matureContentBlock();
+    return mature ? `${role}\n\n${mature}` : role;
+}
+
 // 작성 원칙 뒤에 붙는 공통 문체 규칙 (비어 있으면 없음)
 function pushWritingStyle(parts) {
     const style = getPrompt('writingStyle');
@@ -381,7 +394,7 @@ function pushWritingStyle(parts) {
 }
 
 function buildCoreSystem(options = {}) {
-    const parts = [getPrompt('role')];
+    const parts = [withMature(getPrompt('role'))];
     const principles = getPrompt('principles');
     if (principles) parts.push(wrap('principles', principles));
     pushWritingStyle(parts);
@@ -414,7 +427,7 @@ function describeMirrorSource(charData, isBot) {
 }
 
 function buildBotCoreSystem(options = {}) {
-    const parts = [getPrompt('botRole')];
+    const parts = [withMature(getPrompt('botRole'))];
     const principles = getPrompt('botPrinciples');
     if (principles) parts.push(wrap('principles', principles));
     pushWritingStyle(parts);
@@ -441,7 +454,7 @@ function densityBlock({ worldOnly = false, fixedLayout = false } = {}) {
 
 // 봇 모드에서 캐릭터 없이 세계관만 만들 때 — 인물용 역할·원칙·자료 규칙 대신 세계관용
 function buildWorldCoreSystem(options = {}) {
-    const parts = [getPrompt('worldRole')];
+    const parts = [withMature(getPrompt('worldRole'))];
     const principles = getPrompt('worldPrinciples');
     if (principles) parts.push(wrap('principles', principles));
     pushWritingStyle(parts);
@@ -927,11 +940,11 @@ function greetingFrame(gen) {
     const rules = wrap('greeting_rules', getPrompt('greetingRules'));
     if (gen.worldOnly) {
         return {
-            system: `${WORLD_GREETING_ROLE}\n\n${rules}\n\n${wrap('world_greeting_rules', getPrompt('worldGreetingRules'))}`,
+            system: `${withMature(WORLD_GREETING_ROLE)}\n\n${rules}\n\n${wrap('world_greeting_rules', getPrompt('worldGreetingRules'))}`,
             source: wrap('world_setting', gen.fullText),
         };
     }
-    return { system: `${GREETING_ROLE}\n\n${rules}`, source: wrap('character_profile', gen.fullText) };
+    return { system: `${withMature(GREETING_ROLE)}\n\n${rules}`, source: wrap('character_profile', gen.fullText) };
 }
 
 function buildGreetingRequest(options = {}) {
@@ -1167,10 +1180,11 @@ export function buildSupportRequest(chat = []) {
         profile,
         writerLines ? `${addressLine}\n${writerLines}` : addressLine,
         wrap('rules', `${getPrompt('supporterRules')}\n${SUPPORTER_FACE_RULE}`),
+        matureContentBlock(),
         wrap('craft_notes', craft),
         ...blocks,
         wrap('material', material, ` kind="${escapeAttr(supportMaterialKind(gen))}" language="${escapeAttr(lang.promptName)}"`),
-    ].join('\n\n');
+    ].filter(Boolean).join('\n\n');
 
     const messages = [{ role: 'system', content: system }];
     for (const message of chat) {
@@ -1370,6 +1384,8 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
     const add = (where, name, editable, desc, included = true, reason = '') => items.push({ where, name, editable, desc, included, reason });
     const density = DENSITY_LEVELS[settings.density] || DENSITY_LEVELS.default;
     const addStyle = () => add('system', '문체 규칙', true, '<writing_style> — 기계적 비유·과장된 비유·반복·낡은 야설 어휘 줄이기', !!getPrompt('writingStyle'), '비어 있음');
+    const addMature = () => add('system', 'NSFW 지침 (베타)', true, '<smut_guidance> — 역할 문단 뒤, 노골적인 내용을 더 적극적으로',
+        !!settings.matureContent && !!getPrompt('matureContent'), settings.matureContent ? '비어 있음' : '설정 탭에서 꺼짐');
     const addDensity = () => add('system', '분량', true,
         density.slot ? `<density> — ${density.label}: ${density.desc}` : '<density> — 밸런스형·압축형을 골랐을 때',
         !!densityBlock(), density.slot ? '비어 있음' : '설정 탭에서 기본');
@@ -1408,6 +1424,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
         : add('user', '캐릭터 프로필', false, '<character_profile> — 지금 결과 전체', hasResult, '생성된 프로필 없음'));
     const greetingSystem = (note) => {
         add('system', '작성자 역할', false, worldOnly ? '세계관을 내레이션하는 롤플레이의 그리팅을 쓰는 작가 역할, 성인 픽션 안내' : '그리팅을 쓰는 작가 역할, 성인 픽션 안내, 참고 자료 취급');
+        addMature();
         add('system', '그리팅 작성 규칙', true, note);
         if (worldOnly) add('system', '세계관 그리팅 규칙', true, '<world_greeting_rules> — 주인공 대신 세계를 내레이션, 설명 대신 장면으로');
     };
@@ -1436,6 +1453,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
     if (isBot && worldOnly) {
         const guidelines = getPrompt('botGuidelines');
         add('system', '역할과 창작 맥락 (세계관만)', true, '세계관 설계자 역할, 성인 픽션 안내');
+        addMature();
         add('system', '작성 원칙 (세계관만)', true, '<principles> — 들어서기 쉽고, 장면을 움직일 거리와 일관된 규칙이 있는 세계', !!getPrompt('worldPrinciples'), '비어 있음');
         addStyle();
         add('system', '자료 규칙 (세계관만)', true, '<source_rules> — 참고 자료를 바탕으로 세계 넓히기, 충돌 시 우선순위');
@@ -1445,6 +1463,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
     } else if (isBot) {
         const guidelines = getPrompt('botGuidelines');
         add('system', '역할과 창작 맥락 (봇)', true, '봇 캐릭터 디자이너 역할, 성인 픽션 안내');
+        addMature();
         add('system', '작성 원칙 (봇)', true, '<principles> — 입체적이고 스스로 움직이는 인물을 만드는 기준', !!getPrompt('botPrinciples'), '비어 있음');
         addStyle();
         add('system', '자료 규칙 (봇)', true, '<source_rules> — 페르소나·기존 캐릭터·월드인포, 충돌 시 우선순위');
@@ -1454,6 +1473,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
     } else {
         const guidelines = getPrompt('guidelines');
         add('system', '역할과 창작 맥락 (페르소나)', true, '캐릭터 디자이너 역할, 성인 픽션 안내');
+        addMature();
         add('system', '작성 원칙 (페르소나)', true, '<principles> — 입체적인 인물을 만드는 기준', !!getPrompt('principles'), '비어 있음');
         addStyle();
         add('system', '자료 규칙 (페르소나)', true, '<source_rules> — 참고 자료·{{user}} 설정, 충돌 시 우선순위');

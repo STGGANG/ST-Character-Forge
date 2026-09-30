@@ -6,7 +6,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "NovaCaso01",
-    "version": "2.0.3",
+    "version": "2.0.4",
     "description": "챗봇에 어울리는 {{user}} 페르소나, 또는 새 봇의 캐릭터·세계관 프로필과 그리팅을 만드는 확장 프로그램. 캐릭터 카드·월드인포·내 페르소나를 참고해 생성하고, 섹션별 재생성·수정·번역, 새 캐릭터 카드 저장을 지원합니다.",
     "homePage": "",
     "auto_update": true

@@ -599,6 +599,9 @@
     font-size: .78em;
     line-height: 1.5;
     color: var(--pf-muted);
+    /* 한글 낱말 중간에서 줄이 끊기지 않게 ("빠집니/다") */
+    word-break: keep-all;
+    overflow-wrap: break-word;
 }
 
 .pf-row-desc:empty {
@@ -3459,6 +3462,12 @@
     width: 36px;
     height: 36px;
     cursor: pointer;
+}
+
+/* 설정 줄 제목 옆 '베타' 표시 */
+.pf-badge-beta {
+    --pf-badge-color: var(--pf-warning);
+    margin-left: -2px; /* 제목 줄 간격(6px)보다 조금 더 붙게 */
 }
 
 .pf-badge {
