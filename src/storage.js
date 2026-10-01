@@ -1,6 +1,6 @@
 import { extension_settings } from "../../../../extensions.js";
 import { saveSettingsDebounced } from "../../../../../script.js";
-import { extensionName, defaultSettings, CARD_FIELDS, LANGUAGES, RESETTABLE_SETTING_KEYS, DENSITY_LEVELS, SETTING_FIELDS, SUPPORTER_FACES, FONT_SCALES } from './constants.js';
+import { extensionName, defaultSettings, CARD_FIELDS, LANGUAGES, RESETTABLE_SETTING_KEYS, DENSITY_LEVELS, SETTING_FIELDS, SUPPORTER_FACES, FONT_SCALES, GUIDELINE_PLACEMENTS } from './constants.js';
 import { PROMPT_SLOTS, LEGACY_PROMPT_KEYS } from './prompt-defaults.js';
 import { state, log } from './state.js';
 
@@ -67,6 +67,7 @@ function migrateSettings(settings) {
     if (!['pretendard', 'theme'].includes(settings.uiFontFamily)) settings.uiFontFamily = 'pretendard';
     if (!Number.isInteger(settings.hammerTaps) || settings.hammerTaps < 0) settings.hammerTaps = 0;
     settings.matureContent = settings.matureContent === true;
+    settings.guidelinesPlacement = normalizeGuidelinesPlacement(settings.guidelinesPlacement);
     // 세계관 항목: 기본 항목 또는 직접 추가한 항목만 (고른 순서 유지)
     if (!settings.settingFieldDefinitions || typeof settings.settingFieldDefinitions !== 'object') settings.settingFieldDefinitions = {};
     settings.settingFields = [...new Set(Array.isArray(settings.settingFields) ? settings.settingFields : [])]
@@ -106,8 +107,47 @@ function migrateSettings(settings) {
     }
     settings.customSystemPrompt = '';
 
-    for (const slot of Object.keys(settings.customPrompts)) {
-        if (!PROMPT_SLOTS[slot]) delete settings.customPrompts[slot];
+    // 서포터 대화 규칙은 네 칸으로 나뉨 — 직접 고친 한 덩어리 글은 자동으로 나눌 수 없어 보관함으로 (기본값으로 시작)
+    const oldRules = [];
+    if (Object.hasOwn(settings.customPrompts, 'supporterRules')) {
+        oldRules.push({ name: '적용 중이던 수정본', prompts: { supporterRules: String(settings.customPrompts.supporterRules ?? '') } });
+        delete settings.customPrompts.supporterRules;
+    }
+    for (const preset of settings.promptPresets) {
+        if (preset.prompts && Object.hasOwn(preset.prompts, 'supporterRules')) {
+            oldRules.push({ name: `프리셋: ${preset.name}`, prompts: { supporterRules: String(preset.prompts.supporterRules ?? '') } });
+            delete preset.prompts.supporterRules;
+        }
+    }
+    const knownRules = new Set(settings.legacyPrompts.map(set => JSON.stringify(set.prompts)));
+    const freshRules = oldRules.filter(set => !knownRules.has(JSON.stringify(set.prompts)));
+    if (freshRules.length) settings.legacyPrompts.push(...freshRules);
+
+    // [공통] 칸 수정본은 탭마다 따로 — 예전 한 칸짜리 수정본은 그 칸을 쓰는 탭마다 복사
+    splitScopedPrompts(settings.customPrompts);
+    for (const preset of settings.promptPresets) {
+        if (preset.prompts) splitScopedPrompts(preset.prompts);
+        if (preset.scope !== undefined && !PROMPT_SCOPES.includes(preset.scope)) delete preset.scope;
+    }
+
+    for (const key of Object.keys(settings.customPrompts)) {
+        if (!isKnownPromptKey(key)) delete settings.customPrompts[key];
+    }
+
+    const labels = settings.promptLabels && typeof settings.promptLabels === 'object' ? settings.promptLabels : {};
+    settings.promptLabels = Object.fromEntries(Object.entries(labels)
+        .filter(([slot, name]) => PROMPT_SLOTS[slot] && typeof name === 'string' && name.trim())
+        .map(([slot, name]) => [slot, name.trim().slice(0, PROMPT_LABEL_MAX)]));
+}
+
+function splitScopedPrompts(prompts) {
+    for (const slot of Object.keys(PROMPT_SLOTS)) {
+        if (!isScopedSlot(slot) || !Object.hasOwn(prompts, slot)) continue;
+        for (const scope of promptScopesOf(slot)) {
+            const key = `${slot}@${scope}`;
+            if (!Object.hasOwn(prompts, key)) prompts[key] = prompts[slot];
+        }
+        delete prompts[slot];
     }
 }
 
@@ -161,35 +201,104 @@ export function importSettingsSnapshot(snapshot) {
 
 // 실제로 사용할 프롬프트 (수정본이 있으면 수정본, 없으면 기본값)
 // requireText 항목은 비어 있으면 기본값, 그 외는 비어 있으면 '' (해당 블록 생략)
-export function getPrompt(slot) {
+export function normalizeGuidelinesPlacement(value) {
+    const source = value && typeof value === 'object' ? value : {};
+    const pick = key => (Object.hasOwn(GUIDELINE_PLACEMENTS, source[key]) ? source[key] : 'user');
+    return { guidelines: pick('guidelines'), botGuidelines: pick('botGuidelines') };
+}
+
+export function getGuidelinesPlacement(slot) {
+    return normalizeGuidelinesPlacement(state.settings?.guidelinesPlacement)[slot] || 'user';
+}
+
+// ===== 프롬프트 칸 =====
+// 탭(묶음): persona / bot / supporter. 여러 탭에서 쓰는 [공통] 칸은 기본값만 같고 수정본은 탭마다 따로 ("칸@탭" 키)
+export const PROMPT_SCOPES = ['persona', 'bot', 'supporter'];
+export const PROMPT_LABEL_MAX = 40;
+
+export function promptScopesOf(slot) {
+    return PROMPT_SLOTS[slot]?.modes || ['persona', 'bot'];
+}
+
+export function isScopedSlot(slot) {
+    return promptScopesOf(slot).length > 1;
+}
+
+// customPrompts에 저장되는 키 — [공통] 칸은 "칸@탭" (탭을 안 주거나 맞지 않으면 첫 탭)
+export function promptKey(slot, scope) {
+    if (!isScopedSlot(slot)) return slot;
+    const scopes = promptScopesOf(slot);
+    return `${slot}@${scopes.includes(scope) ? scope : scopes[0]}`;
+}
+
+export function isKnownPromptKey(key) {
+    const [slot, scope, extra] = String(key).split('@');
+    if (!PROMPT_SLOTS[slot] || extra !== undefined) return false;
+    return scope === undefined ? !isScopedSlot(slot) : isScopedSlot(slot) && promptScopesOf(slot).includes(scope);
+}
+
+// 그 탭에 속한 저장 키 전부 (그 탭 전용 칸 + 그 탭의 [공통] 칸)
+export function promptKeysOfScope(scope) {
+    return Object.keys(PROMPT_SLOTS).filter(slot => promptScopesOf(slot).includes(scope)).map(slot => promptKey(slot, scope));
+}
+
+// 비우면 '' (블록 생략) — 비울 수 없는 칸(requireText: 남매 이름)만 기본값으로
+export function getPrompt(slot, scope) {
     const def = PROMPT_SLOTS[slot];
     if (!def) return '';
     const custom = state.settings?.customPrompts;
-    if (custom && Object.hasOwn(custom, slot)) {
-        const text = String(custom[slot] ?? '');
+    const key = promptKey(slot, scope);
+    if (custom && Object.hasOwn(custom, key)) {
+        const text = String(custom[key] ?? '');
         if (!def.requireText || text.trim()) return text.trim();
     }
     return def.default;
 }
 
-export function isPromptCustomized(slot) {
-    return !!state.settings?.customPrompts && Object.hasOwn(state.settings.customPrompts, slot);
+export function isPromptCustomized(slot, scope) {
+    return !!state.settings?.customPrompts && Object.hasOwn(state.settings.customPrompts, promptKey(slot, scope));
 }
 
-export function setCustomPrompt(slot, text) {
+export function setCustomPrompt(slot, text, scope) {
     const def = PROMPT_SLOTS[slot];
     if (!def || !state.settings) return;
     state.settings.customPrompts ||= {};
+    const key = promptKey(slot, scope);
     if (text.trim() === def.default.trim()) {
-        delete state.settings.customPrompts[slot];
+        delete state.settings.customPrompts[key];
     } else {
-        state.settings.customPrompts[slot] = text;
+        state.settings.customPrompts[key] = text;
     }
     saveSettings();
 }
 
-export function resetPrompt(slot) {
+export function resetPrompt(slot, scope) {
     if (!state.settings?.customPrompts) return;
-    delete state.settings.customPrompts[slot];
+    delete state.settings.customPrompts[promptKey(slot, scope)];
+    saveSettings();
+}
+
+// 표시 이름 — 직접 붙인 이름이 있으면 "[분류] 이름", 없으면 기본 이름
+export function getPromptLabel(slot) {
+    const name = state.settings?.promptLabels?.[slot];
+    return typeof name === 'string' && name.trim() ? name.trim() : '';
+}
+
+export function promptDisplayLabel(slot) {
+    const def = PROMPT_SLOTS[slot];
+    if (!def) return '';
+    const name = getPromptLabel(slot);
+    if (!name) return def.label;
+    const prefix = def.label.match(/^\[[^\]]+\]\s*/)?.[0] || '';
+    return `${prefix}${name}`;
+}
+
+export function setPromptLabel(slot, name) {
+    if (!PROMPT_SLOTS[slot] || !state.settings) return;
+    state.settings.promptLabels ||= {};
+    const clean = String(name || '').trim().slice(0, PROMPT_LABEL_MAX);
+    const defaultName = PROMPT_SLOTS[slot].label.replace(/^\[[^\]]+\]\s*/, '');
+    if (!clean || clean === defaultName) delete state.settings.promptLabels[slot];
+    else state.settings.promptLabels[slot] = clean;
     saveSettings();
 }

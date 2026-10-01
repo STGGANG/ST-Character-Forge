@@ -2059,12 +2059,16 @@
 }
 
 .pf-result-badge {
+    max-width: 100%;
+    overflow: hidden;
     padding: 2px 9px;
     border-radius: 999px;
     background: var(--pf-soft2);
     font-size: .74em;
     font-weight: 600;
     color: var(--pf-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .pf-result-badge:empty {
@@ -2112,6 +2116,11 @@
 .pf-translate-row .pf-select {
     flex: 1 1 8em;
     min-width: 0;
+}
+
+/* 언어 선택칸 옆 버튼은 선택칸 높이에 맞춤 */
+.persona-forge-popup .pf-translate-row .pf-small-btn {
+    height: var(--pf-control-h);
 }
 
 .pf-warning-banner {
@@ -2721,6 +2730,17 @@
     /* 위아래 끝이 뚝 잘려 보이지 않게 — 그쪽으로 더 스크롤할 내용이 있을 때만 옅게 */
     -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--pf-fade-top), #000 calc(100% - var(--pf-fade-bottom)), transparent 100%);
     mask-image: linear-gradient(to bottom, transparent 0, #000 var(--pf-fade-top), #000 calc(100% - var(--pf-fade-bottom)), transparent 100%);
+}
+
+/* 대화창은 스크롤바를 숨김 (스크롤은 그대로 됨, 위아래 그라데이션이 더 볼 내용이 있음을 알려 줌) */
+#persona-forge-popup .pf-support-log {
+    scrollbar-width: none !important;
+}
+
+#persona-forge-popup .pf-support-log::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
 }
 
 .pf-support-log.pf-fade-top {
@@ -3464,12 +3484,6 @@
     cursor: pointer;
 }
 
-/* 설정 줄 제목 옆 '베타' 표시 */
-.pf-badge-beta {
-    --pf-badge-color: var(--pf-warning);
-    margin-left: -2px; /* 제목 줄 간격(6px)보다 조금 더 붙게 */
-}
-
 .pf-badge {
     display: inline-flex;
     align-items: center;
@@ -3492,6 +3506,40 @@
 .pf-badge-personal { --pf-badge-color: #e0719c; }
 .pf-badge-bot { --pf-badge-color: #a585ff; }
 .pf-badge-persona { --pf-badge-color: #2fb5a0; }
+
+/* 프롬프트 칸 선택 + 이름 바꾸기 */
+.pf-prompt-slot-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.pf-prompt-slot-row .pf-select {
+    flex: 1;
+    min-width: 0;
+}
+
+/* 추가 지침 칸에서만 보이는 '들어갈 위치' 선택 */
+.pf-guidelines-place {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pf-guidelines-place[hidden] {
+    display: none;
+}
+
+.pf-guidelines-place label {
+    flex: none;
+    font-size: .85em;
+    color: var(--pf-muted);
+}
+
+.pf-guidelines-place .pf-select {
+    flex: 1;
+    min-width: 0;
+}
 
 .pf-prompt-actions {
     display: flex;
@@ -4046,17 +4094,16 @@
 }
 
 
-/* ===== 설치·업데이트 후 한 번 뜨는 안내 창 ===== */
+/* ===== 설치·업데이트 후 한 번 뜨는 안내 창 — 대장간 창과 같은 크기, 안쪽 내용만 스크롤 ===== */
 .pf-update-card {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    width: min(460px, 100%);
-    max-height: calc(100vh - 32px);
-    max-height: calc(100dvh - 32px);
+    width: min(760px, 100%);
+    height: min(860px, calc(100vh - 32px));
+    height: min(860px, calc(100dvh - 32px));
     padding: 22px 22px 18px;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    overflow: hidden;
     background: var(--pf-surface);
     border: 1px solid var(--pf-line);
     border-radius: var(--pf-r-window);
@@ -4066,9 +4113,34 @@
     animation: pf-rise .22s cubic-bezier(.2, .8, .3, 1);
 }
 
-/* 화면이 낮으면 내용이 눌려 줄지 않고 창 안에서 스크롤되게 (모바일에서 확인 버튼 찌그러짐 방지) */
+/* 제목과 확인 버튼은 그대로, 가운데(남매 인사·업데이트 내역)만 스크롤 */
 .pf-update-card > * {
     flex-shrink: 0;
+}
+
+.pf-update-card > .pf-update-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    gap: 16px;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.pf-update-body > * {
+    flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+    .pf-update-card {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        border-radius: 0;
+        padding-top: calc(22px + env(safe-area-inset-top, 0px));
+        padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    }
 }
 
 /* 제목 오른쪽에 버전 뱃지를 한 줄로 */
@@ -4122,6 +4194,40 @@
 
 .pf-update-notes li + li {
     margin-top: 4px;
+}
+
+.pf-update-notes h4 {
+    margin: 0 0 4px;
+    font-size: .95em;
+    font-weight: 700;
+}
+
+.pf-update-notes ul + h4 {
+    margin-top: 12px;
+}
+
+/* 항목 아래 덧붙임 (작게·옅게) */
+.pf-update-notes .pf-update-sub {
+    display: block;
+    font-size: .9em;
+    color: var(--pf-muted);
+}
+
+/* 이전 버전 내역 — 접어 둠 */
+.pf-update-older {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--pf-line);
+}
+
+.pf-update-older > summary {
+    color: var(--pf-muted);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.pf-update-older[open] > summary {
+    margin-bottom: 8px;
 }
 
 .persona-forge-popup .pf-update-ok {

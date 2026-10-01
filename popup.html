@@ -347,10 +347,9 @@
                         <label class="pf-row">
                             <span class="pf-row-icon"><i class="fa-solid fa-fire"></i></span>
                             <span class="pf-row-text">
-                                <span class="pf-row-title">NSFW 지침 <span class="pf-badge pf-badge-beta">베타</span></span>
-                                <span class="pf-row-desc">켜 둔 동안 보내는 생성·수정·그리팅·모루 남매 대화에 노골적인 표현을 더 적극적으로
-                                    허용하는 지침을 넣습니다. 끄면 다음 요청부터 빠집니다. 아직 테스트를 충분히 거치지 않은 지침이니,
-                                    필요하면 프롬프트 탭에서 고쳐 쓰십시오.</span>
+                                <span class="pf-row-title">NSFW 지침</span>
+                                <span class="pf-row-desc">켜 둔 동안 보내는 생성·수정·그리팅·번역·모루 남매 대화에 노골적인 표현을 더 적극적으로
+                                    허용하는 지침을 넣습니다. 끄면 다음 요청부터 빠집니다.</span>
                             </span>
                             <span class="pf-row-ctrl"><input type="checkbox" id="pf-mature-toggle"
                                     class="pf-switch-input"></span>
@@ -594,7 +593,7 @@
                         <span id="pf-result-template" class="pf-result-badge"></span>
                         <span id="pf-result-lang" class="pf-result-badge"></span>
                         <span id="pf-result-tokens" class="pf-result-badge"
-                            title="프로필 토큰 수 (그리팅 제외) · 실리태번 토크나이저 기준"></span>
+                            title="프로필 토큰 수 (그리팅 제외, 실리태번 토크나이저 기준) · 만든 AI 모델"></span>
                     </div>
 
                     <details id="pf-result-concept" class="pf-result-concept" style="display: none;">
@@ -687,7 +686,7 @@
                         <div id="pf-greeting-badges" class="pf-result-badges" style="display: none;">
                             <span id="pf-greeting-meta" class="pf-result-badge"></span>
                             <span id="pf-greeting-tokens" class="pf-result-badge"
-                                title="그리팅 토큰 수 · 실리태번 토크나이저 기준"></span>
+                                title="그리팅 토큰 수 (실리태번 토크나이저 기준) · 만든 AI 모델"></span>
                         </div>
                         <div id="pf-greeting-panel" class="pf-inline-panel" style="display: none;">
                             <div class="pf-option-row">
@@ -870,7 +869,7 @@
                             <div id="pf-support-log" class="pf-support-log" aria-live="polite"></div>
                             <div class="pf-support-input">
                                 <textarea id="pf-support-text" class="pf-textarea" rows="1"
-                                    placeholder="메시지 입력... (Enter 보내기 · Shift+Enter 줄바꿈)"></textarea>
+                                    placeholder="메시지 입력... (Enter 줄바꿈 · Ctrl+Enter 보내기)"></textarea>
                                 <button id="pf-support-send" class="pf-primary-btn pf-support-send" type="button"
                                     title="보내기"><i class="fa-solid fa-paper-plane"></i></button>
                             </div>
@@ -981,8 +980,17 @@
                             <button class="pf-prompt-scope-btn" type="button" data-scope="bot">봇</button>
                             <button class="pf-prompt-scope-btn" type="button" data-scope="supporter">서포터</button>
                         </div>
-                        <select id="pf-prompt-slot" class="pf-select"></select>
+                        <div class="pf-prompt-slot-row">
+                            <select id="pf-prompt-slot" class="pf-select"></select>
+                            <button id="pf-prompt-rename" class="pf-btn pf-small-btn pf-icon-only" type="button" title="목록에 보일 이름 바꾸기" aria-label="이름 바꾸기">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                        </div>
                         <p id="pf-prompt-slot-hint" class="pf-hint"></p>
+                        <div id="pf-guidelines-place-row" class="pf-guidelines-place" hidden>
+                            <label for="pf-guidelines-place">들어갈 위치</label>
+                            <select id="pf-guidelines-place" class="pf-select"></select>
+                        </div>
                         <textarea id="pf-prompt-editor" class="pf-textarea pf-code" rows="14"
                             placeholder="비워 두면 이 블록을 넣지 않습니다..."></textarea>
                         <div class="pf-prompt-actions">
@@ -1002,7 +1010,7 @@
                         프롬프트 프리셋
                         <details class="pf-info">
                             <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
-                            <div class="pf-info-bubble">수정한 모든 프롬프트를 한 묶음으로 저장·불러옵니다. 불러오면 바로 적용됩니다.</div>
+                            <div class="pf-info-bubble">지금 보고 있는 탭(페르소나·봇·서포터)에서 수정한 프롬프트를 추가 지침 위치와 함께 한 묶음으로 저장·불러옵니다. 불러오면 바로 적용되고, 다른 탭은 그대로입니다. "전체"라고 표시된 예전 프리셋은 불러오면 모든 탭이 바뀝니다.</div>
                         </details>
                     </h5>
                     <div class="pf-group-body pf-group-pad">
@@ -1102,6 +1110,7 @@
                             <option value="translate">번역</option>
                             <option value="greeting">그리팅 (봇)</option>
                             <option value="greetingModify">그리팅 수정 (봇)</option>
+                            <option value="support">모루 남매 대화</option>
                         </select>
                         <ol id="pf-structure-list" class="pf-structure-list"></ol>
                     </div>

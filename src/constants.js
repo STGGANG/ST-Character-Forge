@@ -1,7 +1,7 @@
 export const extensionName = "persona-forge";
 
 // manifest.json의 version과 같게 — 바뀌면 설치·업데이트 후 한 번 안내 창을 띄움
-export const EXTENSION_VERSION = '2.0.4';
+export const EXTENSION_VERSION = '2.1.0';
 
 // 글자 크기 — 대장간 창 전체(ui)와 모루 남매 대화(chat) 배율
 export const FONT_SCALES = {
@@ -58,6 +58,14 @@ export const DENSITY_LEVELS = {
     default: { label: '기본형', desc: '분량을 따로 조절하지 않습니다', slot: '' },
     concise: { label: '밸런스형', desc: '중요한 정보는 충분히 풀고, 사소한 것은 짧게 줄임', slot: 'density' },
     compact: { label: '압축형', desc: '전체를 짧게 압축하고, 핵심만 간결하게 남김', slot: 'densityCompact' },
+};
+
+// 추가 지침이 들어갈 자리 (프롬프트 탭에서 페르소나·봇 추가 지침마다 고름) — 생성·섹션 재생성·전체 수정
+export const GUIDELINE_PLACEMENTS = {
+    user: { label: '사용자 메시지 · 컨셉/지시 뒤 (기본)' },
+    craft: { label: '시스템 · 작성 기준 끝 (분량 뒤)' },
+    afterUser: { label: '시스템 · 컨셉 뒤, NSFW 지침 앞' },
+    beforeFormat: { label: '시스템 · NSFW 지침 뒤, 출력 형식 앞' },
 };
 
 export const GENERATION_MODES = {
@@ -277,6 +285,8 @@ export const defaultSettings = {
     uiFontFamily: 'pretendard',
     // NSFW 지침 (켜면 번역을 뺀 모든 생성·서포터 대화에 <smut_guidance>)
     matureContent: false,
+    // 추가 지침이 들어갈 자리 { 슬롯: GUIDELINE_PLACEMENTS 키 }
+    guidelinesPlacement: { guidelines: 'user', botGuidelines: 'user' },
     // 마지막으로 업데이트 안내를 본 버전 (다르면 한 번 안내)
     lastSeenVersion: '',
     // 작가(나)의 성별('' | female | male)과 짧은 자기소개 — 모루 남매에게 작가를 알려 줌 ({{user}}와는 별개)
@@ -319,7 +329,10 @@ export const defaultSettings = {
     hammerTaps: 0,
 
     // 수정한 프롬프트 { [PROMPT_SLOTS 키]: 텍스트 } — 키가 없으면 기본 프롬프트 사용
+    // [공통] 칸(여러 탭에서 쓰는 칸)은 탭마다 따로: "칸@탭" (예: writingStyle@bot)
     customPrompts: {},
+    // 프롬프트 칸의 표시 이름 { [PROMPT_SLOTS 키]: 이름 } — 목록·구조 안내에만 쓰임
+    promptLabels: {},
 
     // (구버전) 커스텀 시스템 프롬프트 — 불러올 때 이전 버전 보관함으로 옮김
     customSystemPrompt: '',

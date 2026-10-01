@@ -81,6 +81,8 @@ function resolveTarget(context, settings) {
             kind: 'tc', label: `현재 연결 (${tc.type || 'Text Completion'})`, preset: {},
             instruct: instruct?.enabled ? instruct : null,
             apiType: tc.type, server: context.getTextGenServer?.(tc.type),
+            // 표시용 (요청에는 넣지 않음) — 실리태번이 연결 상태에 모델 이름을 둠
+            modelLabel: typeof context.onlineStatus === 'string' && context.onlineStatus !== 'no_connection' ? context.onlineStatus : '',
             ...outputLimit(override, positive(amount_gen) ?? 1024),
         };
     }
@@ -136,6 +138,7 @@ export async function callGenerationAPI(messages, { signal, label = '', connecti
 
     if (signal?.aborted) throw cancelledError();
     record.status = result.truncated ? 'truncated' : 'done';
+    result.model = result.model || String(target.model || target.modelLabel || '').trim();
 
     if (typeof result.text !== 'string' || !result.text.trim()) {
         // 사고 모델이 출력 한도를 생각하는 데 다 쓰면 본문이 비어서 옴
@@ -180,6 +183,12 @@ async function extractText(raw, api) {
         if (typeof text === 'string') return text;
     }
     return raw?.choices?.[0]?.message?.content ?? raw?.choices?.[0]?.text ?? raw?.content ?? '';
+}
+
+// 실제로 답한 모델 이름 (OpenAI 호환: model / Claude 스트리밍: message.model / Gemini: modelVersion) — 없으면 ''
+function responseModel(raw) {
+    const model = raw?.model ?? raw?.message?.model ?? raw?.modelVersion;
+    return typeof model === 'string' ? model.trim() : '';
 }
 
 // API가 출력 한도 때문에 멈췄다고 알려줬는지
@@ -253,6 +262,7 @@ async function streamChatCompletion(context, payload, signal) {
     const replyState = { reasoning: '', images: [], signature: '', toolSignatures: {} };
     let text = '';
     let truncated = false;
+    let model = '';
 
     while (true) {
         const { done, value } = await reader.read();
@@ -270,6 +280,7 @@ async function streamChatCompletion(context, payload, signal) {
         }
         if (parsed?.error) throw new Error(streamErrorMessage(raw, response.status));
         if (isStreamTruncation(parsed)) truncated = true;
+        model ||= responseModel(parsed);
         if (Array.isArray(parsed?.choices) && parsed.choices[0]?.index > 0) continue; // 여러 개를 요청한 경우의 나머지
         // 추론(thinking) 내용은 결과에 넣지 않고, 진행 표시에만 씀 (생각하는 동안 멈춘 것처럼 보이지 않게)
         const piece = openai.getStreamingReply(parsed, replyState, {
@@ -279,7 +290,7 @@ async function streamChatCompletion(context, payload, signal) {
         text += joinGeminiParts(parsed?.candidates?.[0]?.content?.parts) ?? piece;
         state.progressListener?.(text.length, replyState.reasoning.length);
     }
-    return { text, truncated, reasoningChars: replyState.reasoning.length };
+    return { text, truncated, model, reasoningChars: replyState.reasoning.length };
 }
 
 // Chat Completion — 실리태번 설정(모델·프록시·샘플러)은 사용하되 메시지는 가공하지 않음
@@ -342,7 +353,7 @@ async function sendChatCompletion(context, target, messages, signal) {
     }
 
     const raw = await service.sendRequest(payload, false, signal);
-    return { text: await extractText(raw, 'openai'), truncated: detectTruncation(raw) };
+    return { text: await extractText(raw, 'openai'), truncated: detectTruncation(raw), model: responseModel(raw) };
 }
 
 async function sendTextCompletion(context, target, messages, signal) {
@@ -382,7 +393,7 @@ async function sendTextCompletion(context, target, messages, signal) {
     for (const stop of instructStops) {
         if (stop && text.endsWith(stop)) text = text.slice(0, -stop.length);
     }
-    return { text, truncated: detectTruncation(raw) };
+    return { text, truncated: detectTruncation(raw), model: responseModel(raw) };
 }
 
 // 기타 API 폴백 — 이 경로는 실리태번이 매크로를 치환하므로

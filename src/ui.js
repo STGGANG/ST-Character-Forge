@@ -4,13 +4,14 @@ import {
     extensionName, extensionFolderPath,
     PROFILE_FIELDS, TEMPLATE_PRESETS, LANGUAGES, CARD_FIELDS, HISTORY_FILE_NAME, RESETTABLE_SETTING_KEYS,
     BOT_DIRECTIONS, GREETING_LENGTHS, GREETING_POVS, MIRROR_TEMPLATE, FORGE_RANKS, DENSITY_LEVELS, SETTING_FIELDS, MANUAL_PERSONA_ID,
-    SUPPORTER_AVATARS, SUPPORTER_FACES, HISTORY_LIMIT, HISTORY_WARN_AT, EXTENSION_VERSION, FONT_SCALES, HAMMER_TITLES,
+    SUPPORTER_AVATARS, SUPPORTER_FACES, HISTORY_LIMIT, HISTORY_WARN_AT, EXTENSION_VERSION, FONT_SCALES, HAMMER_TITLES, GUIDELINE_PLACEMENTS,
 } from './constants.js';
 import { PROMPT_SLOTS } from './prompt-defaults.js';
 import { state, log, logError, getSettings, cancelOperation, isCancelError, onBusyChange } from './state.js';
 import {
     updateSetting, saveSettings, getPrompt, isPromptCustomized, setCustomPrompt, resetPrompt,
-    resetSettingValues, resetAllSettings, exportSettingsSnapshot, importSettingsSnapshot,
+    resetSettingValues, resetAllSettings, exportSettingsSnapshot, importSettingsSnapshot, normalizeGuidelinesPlacement, getGuidelinesPlacement,
+    isScopedSlot, promptScopesOf, promptKeysOfScope, promptDisplayLabel, getPromptLabel, setPromptLabel,
 } from './storage.js';
 import {
     listHistory, addHistory, updateHistory, duplicateHistory, deleteHistory, deleteHistoryItems, clearHistory, importHistory, getHistoryBackend,
@@ -156,19 +157,67 @@ function isImeComposing(e) {
 }
 
 // ===== 설치·업데이트 후 한 번 뜨는 안내 창 =====
-// 아래 내역이 모은 버전 범위의 시작 (제목: 2.0.1~지금 버전)
-const UPDATE_NOTES_SINCE = '2.0.1';
-const UPDATE_NOTES = [
-    '대장간 창과 모루 남매 대화의 글자 크기를 따로 조절하고, 글꼴도 고를 수 있습니다. (설정 탭 → 화면)',
-    '모루 남매에게 작가 정보(성별 · 자기소개)를 알려 줄 수 있습니다.',
-    '모루 남매와의 대화를 기록마다 따로 저장해, 대화가 길어져도 저장이 가볍습니다.',
-    '기록 보관 개수가 200개로 늘었고, 가득 차기 전에 미리 알려 줍니다.',
-    '프롬프트 탭의 항목 이름을 [페르소나] · [봇] · [공통]처럼 보기 쉽게 정리했습니다.',
-    '직접 편집 · 섹션 재생성 · 바로 적용한 내용이 기록에 저장되지 않던 문제를 고쳤습니다.',
-    '모루 남매와의 대화에서 내 메시지와 남매의 대사·서술을 고칠 수 있습니다.',
-    '캐릭터 생성과 모루 남매 프롬프트를 조금 더 다듬었습니다.',
-    '설정 탭(프로필 형식)에 NSFW 지침(베타) 켜기가 생겼습니다.',
+// 버전별 업데이트 내역 — 맨 앞이 지금 버전(펼쳐서), 나머지는 "이전 업데이트"로 접어 둠
+// 항목은 글 한 줄, 또는 { text, sub } (sub: 그 아래 작게 덧붙이는 설명)
+const UPDATE_HISTORY = [
+    {
+        version: '2.1.0',
+        notes: [
+            '프롬프트 전반을 다듬고 요청 순서를 정리했습니다. (자세한 것은 프롬프트 탭 확인)',
+            '사용자 추가 지침이 들어갈 위치를 고를 수 있습니다. (프롬프트 탭 → 추가 지침)',
+            '[공통] 프롬프트를 페르소나·봇·서포터 탭마다 따로 고칠 수 있고, 프롬프트 프리셋도 탭마다 따로 저장합니다.',
+            '프롬프트 칸의 표시 이름을 바꿀 수 있고, 남매 이름을 뺀 모든 칸을 비울 수 있습니다.',
+            '모루 남매 대화: Enter는 줄바꿈, Ctrl+Enter로 보내기.',
+            '모루 남매 대화는 기록 자동 저장 설정과 상관없이 항상 저장됩니다.',
+            '결과의 토큰 수 옆에 만든 AI 모델이 표시됩니다.',
+        ],
+    },
+    {
+        version: '2.0.4',
+        notes: [
+            '기록 이름 바꾸기(🏷)',
+            '남매 답의 현재 스와이프 하나만 지우기',
+        ],
+    },
+    {
+        version: '2.0.3',
+        notes: ['설정 탭에 NSFW 지침 켜기가 생겼습니다.'],
+    },
+    {
+        version: '2.0.2',
+        notes: [
+            { text: '직접 편집·섹션 재생성·바로 적용한 내용이 기록에 저장되지 않던 문제를 고쳤습니다.', sub: '2.0.1 버전 업데이트 이후 일시적으로 생긴 문제입니다. 죄송합니다.' },
+            { text: '모루 남매와의 대화에서 내 메시지와 남매의 대사·서술을 고칠 수 있습니다.', sub: '제안 카드는 출력 오류 방지를 위해 수정이 불가능합니다.' },
+        ],
+    },
+    {
+        version: '2.0.1',
+        notes: [
+            'UI 글자 크기를 따로 조절하고, 글꼴도 고를 수 있습니다.',
+            '모루 남매에게 작가 정보(성별·자기소개)를 알려 줄 수 있습니다.',
+            '모루 남매와의 대화를 기록마다 따로 저장해, 대화가 길어져도 저장이 가볍습니다.',
+            '기록 보관 개수가 200개로 늘었고, 가득 차기 전에 미리 알려 줍니다. (기존 100개)',
+            '프롬프트 탭의 항목 이름을 [페르소나]·[봇]·[공통]처럼 보기 쉽게 정리했습니다.',
+        ],
+    },
 ];
+
+function updateNotesHtml(notes) {
+    return `<ul>${notes.map(note => {
+        const { text, sub } = typeof note === 'string' ? { text: note } : note;
+        return `<li>${escapeHtml(text)}${sub ? `<span class="pf-update-sub">${escapeHtml(sub)}</span>` : ''}</li>`;
+    }).join('')}</ul>`;
+}
+
+function updateHistoryHtml() {
+    const [latest, ...older] = UPDATE_HISTORY;
+    const olderHtml = older.length ? `
+        <details class="pf-update-older">
+            <summary>이전 업데이트 (${older.at(-1).version}~${older[0].version})</summary>
+            ${older.map(entry => `<h4>[${entry.version}]</h4>${updateNotesHtml(entry.notes)}`).join('')}
+        </details>` : '';
+    return `<h3>업데이트 내역</h3><h4>[${latest.version}]</h4>${updateNotesHtml(latest.notes)}${olderHtml}`;
+}
 
 // 쌍둥이 기본 이미지 (직접 올린 이미지가 있으면 그것)
 function noticeAvatarHtml(gender, face) {
@@ -199,11 +248,10 @@ function showUpdateNoticeOnce({ force = false } = {}) {
                     <h2 class="pf-update-title">캐릭터 대장간</h2>
                     <span class="pf-update-version">v${EXTENSION_VERSION}</span>
                 </div>
-                ${line('female', 'smile', '업데이트 끝났어요. 글자가 작아서 눈 찡그리던 분들, 이제 설정 탭 맨 아래에서 키울 수 있어요.')}
-                ${line('male', 'smile', '그리고 이제 저희랑 대화할 때 작가님 소개도 받을 수 있어요. 궁금했거든요, 작가님이 어떤 분인지!')}
-                <div class="pf-update-notes">
-                    <h3>${UPDATE_NOTES_SINCE === EXTENSION_VERSION ? EXTENSION_VERSION : `${UPDATE_NOTES_SINCE}~${EXTENSION_VERSION}`} — 업데이트 내역</h3>
-                    <ul>${UPDATE_NOTES.map(note => `<li>${escapeHtml(note)}</li>`).join('')}</ul>
+                <div class="pf-update-body">
+                    ${line('female', 'smile', '업데이트 끝났어요. 이번엔 프롬프트를 탭마다 따로 손볼 수 있어요. 추가 지침 자리도 직접 고를 수 있고요.')}
+                    ${line('male', 'smile', '그리고 저희랑 얘기할 때 이제 엔터가 줄바꿈이에요! 보내기는 Ctrl+Enter. 반쯤 쓴 말이 날아갈 일은 없어요.')}
+                    <div class="pf-update-notes">${updateHistoryHtml()}</div>
                 </div>
                 <button type="button" class="pf-primary-btn pf-update-ok">확인</button>
             </div>
@@ -393,7 +441,7 @@ export function bindUIEvents() {
     const narrowScreen = window.matchMedia?.('(max-width: 600px)');
     const setSupportPlaceholder = () => $('#pf-support-text').attr('placeholder', narrowScreen?.matches
         ? '메시지 입력...'
-        : '메시지 입력... (Enter 보내기 · Shift+Enter 줄바꿈)');
+        : '메시지 입력... (Enter 줄바꿈 · Ctrl+Enter 보내기)');
     setSupportPlaceholder();
     narrowScreen?.addEventListener?.('change', setSupportPlaceholder);
     // 대화창 위아래 그라데이션 — scroll은 위로 전달되지 않아 대화창에 직접 붙임 (프레임당 한 번만 계산)
@@ -405,11 +453,12 @@ export function bindUIEvents() {
         });
     }, { passive: true });
     $root.on('click', '#pf-support-send', onSupportSend);
+    // 엔터는 줄바꿈 — 보내기는 버튼 (PC는 Ctrl/Cmd+Enter도)
     // 한글 조합 중에 누른 엔터는 글자 확정용 — 무시해야 마지막 글자가 남거나 두 번 전송되지 않음
     $root.on('keydown', '#pf-support-text', (e) => {
-        if (e.key !== 'Enter' || e.shiftKey || isImeComposing(e)) return;
+        if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey) || isImeComposing(e)) return;
         e.preventDefault();
-        if (supportController) return; // 답을 기다리는 동안 엔터로는 취소하지 않음 (취소는 버튼으로)
+        if (supportController) return; // 답을 기다리는 동안 키로는 취소하지 않음 (취소는 버튼으로)
         onSupportSend();
     });
     $root.on('input', '#pf-support-text', function () { growSupportInput(this); });
@@ -646,6 +695,8 @@ export function bindUIEvents() {
     $root.on('input', '#pf-prompt-editor', updatePromptStatus);
     $root.on('click', '#pf-prompt-reset', onPromptReset);
     $root.on('click', '#pf-prompt-apply', onPromptApply);
+    $root.on('change', '#pf-guidelines-place', onGuidelinesPlaceChange);
+    $root.on('click', '#pf-prompt-rename', onPromptRename);
     $root.on('click', '#pf-prompt-preset-save', onPromptPresetSave);
     $root.on('click', '#pf-prompt-preset-load', onPromptPresetLoad);
     $root.on('click', '#pf-prompt-preset-delete', onPromptPresetDelete);
@@ -2310,7 +2361,12 @@ async function updateResultTokens(data = state.currentGeneration) {
     const text = data?.fullText || '';
     if (!text) return $badge.text('');
     const tokens = await countTokens(text);
-    if (state.currentGeneration === data && data.fullText === text) $badge.text(`약 ${tokens.toLocaleString()}토큰`);
+    if (state.currentGeneration === data && data.fullText === text) $badge.text(withModel(`약 ${tokens.toLocaleString()}토큰`, data.model));
+}
+
+// 토큰 수 옆에 만든 모델 이름 (예전 기록처럼 모르면 토큰 수만)
+function withModel(text, model) {
+    return model ? `${text} · ${model}` : text;
 }
 
 // 결과 제목 — 만든 인물의 이름과 참고한 캐릭터 (페르소나는 프로필에서 이름을 못 찾으면 참고한 캐릭터 이름)
@@ -2712,7 +2768,7 @@ async function updateGreetingTokens(greeting) {
     const text = greeting?.text || '';
     if (!text) return $badge.text('');
     const tokens = await countTokens(text);
-    if (state.currentGeneration?.greeting === greeting) $badge.text(`약 ${tokens.toLocaleString()}토큰`);
+    if (state.currentGeneration?.greeting === greeting) $badge.text(withModel(`약 ${tokens.toLocaleString()}토큰`, greeting.model));
 }
 
 function renderGreeting() {
@@ -3305,7 +3361,7 @@ function renderSupportLog({ scroll = 'end' } = {}) {
                     <span>${current + 1}/${swipes.length}</span>
                     <button class="pf-support-swipe-next" title="다음 답"${current === swipes.length - 1 ? ' disabled' : ''}><i class="fa-solid fa-chevron-right"></i></button>
                 </span>` : '',
-            !mine ? `<button class="pf-support-copy" data-index="${index}" title="복사"><i class="fa-regular fa-copy"></i></button>` : '',
+            `<button class="pf-support-copy" data-index="${index}" title="복사"><i class="fa-regular fa-copy"></i></button>`,
             !mine && !message.local && last
                 ? `<button class="pf-support-regen" data-index="${index}" title="다시 답하기 (이전 답도 남아 좌우로 넘겨 볼 수 있습니다)"><i class="fa-solid fa-arrows-rotate"></i></button>` : '',
             !message.local && parts.some(part => part.type === 'text')
@@ -3319,7 +3375,7 @@ function renderSupportLog({ scroll = 'end' } = {}) {
                 textIndex++;
                 // 고치는 중이면 말풍선 자리에 입력칸 (변경안 카드는 그대로 둠)
                 if (rewriting) return `<textarea class="pf-support-rewrite-input" rows="2" aria-label="메시지 수정">${escapeHtml(supportRewrite.drafts?.[textIndex] ?? part.text)}</textarea>`;
-                return `<div class="pf-support-bubble">${mine ? escapeHtml(part.text) : supportMarkdownHtml(part.text)}</div>`;
+                return `<div class="pf-support-bubble">${supportMarkdownHtml(part.text)}</div>`;
             }
             editIndex++;
             return supportEditHtml(part, index, editIndex, supportEditStatus(message, index, editIndex, part));
@@ -3343,11 +3399,17 @@ function renderSupportLog({ scroll = 'end' } = {}) {
     const more = hidden
         ? `<button class="pf-support-more" type="button"><i class="fa-solid fa-chevron-up"></i> 이전 대화 더 보기 <span>(메시지 ${hidden}개)</span></button>` : '';
     $('#pf-support-log').html(supportKnowsHtml() + more + html + typing);
+    // 등장 애니메이션은 한 번만 — 다른 탭에 다녀오면 다시 재생되면서 새 말풍선·답 기다리는 점이 잠깐(또는 계속) 투명하게 보이던 문제
+    $('#pf-support-log .pf-support-new').on('animationend', function (e) {
+        if (e.target !== this) return; // 안쪽 요소의 애니메이션은 무시
+        this.classList.remove('pf-support-new');
+        $(this).off('animationend');
+    });
     $('#pf-support-log .pf-support-rewrite-input').each(function () { growRewriteInput(this); });
     supportRenderedCount = chat.length;
     supportSwiped = false;
     $('#pf-support-send')
-        .attr('title', supportController ? '답 기다리기 취소' : '보내기')
+        .attr('title', supportController ? '답 기다리기 취소' : '보내기 (입력칸이 비어 있으면 마지막 내 메시지로 다시 요청)')
         .html(supportController ? '<i class="fa-solid fa-stop"></i>' : '<i class="fa-solid fa-paper-plane"></i>');
     if (scroll === 'end' || !log || !before) scrollSupportToEnd();
     else if (scroll === 'prepend') log.scrollTop = log.scrollHeight - before.fromBottom;
@@ -3434,7 +3496,12 @@ function onSupportSend() {
     }
     const $input = $('#pf-support-text');
     const text = String($input.val() || '').trim();
-    if (!text || !state.currentGeneration?.fullText) return;
+    if (!state.currentGeneration?.fullText) return;
+    if (!text) {
+        // 입력칸이 비어 있어도 마지막 메시지가 내 말이면 그대로 다시 요청 (답을 못 받았을 때 지우고 다시 쓰지 않게)
+        if (supportChat().filter(message => !message.local).at(-1)?.role === 'user') requestSupportReply();
+        return;
+    }
     const chat = supportChat();
     collapseSupportSwipes(chat.at(-1));
     chat.push({ role: 'user', text });
@@ -3642,6 +3709,7 @@ async function syncGreetingToHistory() {
         const found = gen.historyId && await updateHistory(gen.historyId, {
             greeting: gen.greeting?.text || '',
             greetings: texts.length > 1 ? texts : '',
+            greetingModels: greetingModelsOf(gen) || '',
         });
         if (!found && gen.greeting?.text) {
             gen.historyId = await addHistory(historyEntryFromCurrent(defaultHistoryName()));
@@ -4083,7 +4151,16 @@ function historyEntryFromCurrent(name) {
         supportChat: supportChatForSave(gen.supportChat) || undefined,
         supportGender: supportChatForSave(gen.supportChat) ? gen.supportGender : undefined,
         conceptText: gen.conceptText || '',
+        model: gen.model || undefined,
+        greetingModels: greetingModelsOf(gen),
     };
+}
+
+// 그리팅 버전마다 만든 모델 (그리팅 글 목록과 같은 순서) — 아는 게 하나도 없으면 저장하지 않음
+function greetingModelsOf(gen) {
+    const list = (gen.greetings?.length ? gen.greetings : [gen.greeting]).filter(greeting => greeting?.text);
+    const models = list.map(greeting => greeting.model || '');
+    return models.some(Boolean) ? models : undefined;
 }
 
 function autoSaveToHistory() {
@@ -4387,6 +4464,7 @@ async function onHistoryLoad() {
         templateId: item.templateId,
         language: item.language,
         resultKind: item.kind || 'original',
+        model: item.model || '',
         timestamp: item.timestamp,
         isCustomSheet: isCustom,
     };
@@ -4403,7 +4481,7 @@ async function onHistoryLoad() {
 // 기록의 그리팅 (여러 버전이면 모두, 저장해 둔 버전을 보고 있는 것으로)
 function greetingsFromHistory(item) {
     const texts = item.greetings?.length ? item.greetings : (item.greeting ? [item.greeting] : []);
-    const greetings = texts.map(text => ({ text, truncated: false }));
+    const greetings = texts.map((text, index) => ({ text, truncated: false, model: item.greetingModels?.[index] || '' }));
     return { greetings, greeting: greetings.find(g => g.text === item.greeting) || greetings.at(-1) || null };
 }
 
@@ -4805,10 +4883,19 @@ function promptSlotGroup(slot) {
     return 0;
 }
 
+// 지금 보고 있는 탭 (페르소나 / 봇 / 서포터)
+function currentScope() {
+    return promptScope || (isBotMode() ? 'bot' : 'persona');
+}
+
+const SCOPE_LABELS = { persona: '페르소나', bot: '봇', supporter: '서포터' };
+// 탭 프리셋에 함께 담는 추가 지침 위치 (서포터 탭은 없음)
+const SCOPE_GUIDELINE_SLOT = { persona: 'guidelines', bot: 'botGuidelines' };
+
 function visiblePromptSlots() {
-    const scope = promptScope || (isBotMode() ? 'bot' : 'persona');
+    const scope = currentScope();
     return Object.keys(PROMPT_SLOTS)
-        .filter(slot => (PROMPT_SLOTS[slot].modes || ['persona', 'bot']).includes(scope))
+        .filter(slot => promptScopesOf(slot).includes(scope))
         .map((slot, index) => ({ slot, index, group: promptSlotGroup(slot) }))
         .sort((a, b) => a.group - b.group || a.index - b.index)
         .map(item => item.slot);
@@ -4824,35 +4911,78 @@ async function onPromptScopeChange() {
     });
     populatePromptSlots();
     loadPromptSlot(currentPromptSlot);
+    populatePromptPresets();
 }
 
 function populatePromptSlots() {
     const $select = $('#pf-prompt-slot');
+    const scope = currentScope();
     const slots = visiblePromptSlots();
     if (!slots.includes(currentPromptSlot)) currentPromptSlot = slots[0];
     $select.html(slots.map(slot =>
-        `<option value="${slot}">${escapeHtml(PROMPT_SLOTS[slot].label)}${isPromptCustomized(slot) ? ' ● 수정됨' : ''}</option>`).join(''));
+        `<option value="${slot}">${escapeHtml(promptDisplayLabel(slot))}${isPromptCustomized(slot, scope) ? ' ● 수정됨' : ''}</option>`).join(''));
     $select.val(currentPromptSlot);
 }
 
 function loadPromptSlot(slot) {
     const slots = visiblePromptSlots();
     currentPromptSlot = slots.includes(slot) ? slot : slots[0];
+    const def = PROMPT_SLOTS[currentPromptSlot];
     $('#pf-prompt-slot').val(currentPromptSlot);
-    $('#pf-prompt-slot-hint').text(PROMPT_SLOTS[currentPromptSlot].hint || '');
-    $('#pf-prompt-editor').val(getPrompt(currentPromptSlot));
+    const renamed = getPromptLabel(currentPromptSlot) ? `원래 이름: ${def.label}. ` : '';
+    const shared = isScopedSlot(currentPromptSlot)
+        ? ' [공통] 칸은 기본값만 모든 탭이 같고, 고친 내용은 탭마다 따로 저장됩니다 (적용할 때 이 탭만·모든 탭 중에서 고름).'
+        : '';
+    $('#pf-prompt-slot-hint').text(`${renamed}${def.hint || ''}${shared}`);
+    $('#pf-prompt-editor').val(getPrompt(currentPromptSlot, currentScope()));
+    renderGuidelinesPlace();
     updatePromptStatus();
 }
 
+// 목록에 보일 이름만 바꿈 (프롬프트 내용·태그는 그대로)
+async function onPromptRename() {
+    const slot = currentPromptSlot;
+    const original = PROMPT_SLOTS[slot].label.replace(/^\[[^\]]+\]\s*/, '');
+    const name = await askText(`목록에 보일 이름을 적으십시오. 비우면 원래 이름("${original}")으로 돌아갑니다. 프롬프트 내용과 태그는 바뀌지 않습니다.`,
+        getPromptLabel(slot) || original);
+    if (name === null) return;
+    setPromptLabel(slot, name);
+    populatePromptSlots();
+    loadPromptSlot(slot);
+    renderStructure();
+}
+
+const GUIDELINE_SLOTS = ['guidelines', 'botGuidelines'];
+
+// 추가 지침 칸에서만 — 들어갈 자리 고르기 (고르면 바로 저장, 적용 버튼과 별개)
+function renderGuidelinesPlace() {
+    const shown = GUIDELINE_SLOTS.includes(currentPromptSlot);
+    $('#pf-guidelines-place-row').prop('hidden', !shown);
+    if (!shown) return;
+    $('#pf-guidelines-place')
+        .html(Object.entries(GUIDELINE_PLACEMENTS).map(([key, place]) => `<option value="${key}">${escapeHtml(place.label)}</option>`).join(''))
+        .val(getGuidelinesPlacement(currentPromptSlot));
+}
+
+function onGuidelinesPlaceChange() {
+    const settings = getSettings();
+    const value = String($(this).val());
+    if (!settings || !GUIDELINE_SLOTS.includes(currentPromptSlot) || !Object.hasOwn(GUIDELINE_PLACEMENTS, value)) return;
+    settings.guidelinesPlacement = { ...normalizeGuidelinesPlacement(settings.guidelinesPlacement), [currentPromptSlot]: value };
+    saveSettings();
+    renderStructure();
+}
+
 function isPromptEditorDirty() {
-    return String($('#pf-prompt-editor').val() || '').trim() !== getPrompt(currentPromptSlot).trim();
+    return String($('#pf-prompt-editor').val() || '').trim() !== getPrompt(currentPromptSlot, currentScope()).trim();
 }
 
 function updatePromptStatus() {
+    const scope = currentScope();
     let text;
     if (isPromptEditorDirty()) text = '적용하지 않은 변경 있음';
-    else if (!getPrompt(currentPromptSlot)) text = '비어 있음 — 이 블록은 들어가지 않음';
-    else if (isPromptCustomized(currentPromptSlot)) text = '수정본 사용 중';
+    else if (!getPrompt(currentPromptSlot, scope)) text = '비어 있음 — 이 블록은 들어가지 않음';
+    else if (isPromptCustomized(currentPromptSlot, scope)) text = isScopedSlot(currentPromptSlot) ? `수정본 사용 중 (${SCOPE_LABELS[scope]} 탭)` : '수정본 사용 중';
     else text = '기본값 사용 중';
     $('#pf-prompt-status').text(text).toggleClass('pf-prompt-status-dirty', isPromptEditorDirty());
 }
@@ -4867,41 +4997,97 @@ async function onPromptSlotChange() {
     loadPromptSlot(next);
 }
 
+// [공통] 칸은 이 탭만 되돌림
 function onPromptReset() {
-    resetPrompt(currentPromptSlot);
+    resetPrompt(currentPromptSlot, currentScope());
     loadPromptSlot(currentPromptSlot);
     populatePromptSlots();
+    renderStructure();
+    renderSupportIdentity();
 }
 
-function onPromptApply() {
+async function onPromptApply() {
     const text = $('#pf-prompt-editor').val();
-    const def = PROMPT_SLOTS[currentPromptSlot];
+    const slot = currentPromptSlot;
+    const scope = currentScope();
+    const def = PROMPT_SLOTS[slot];
+    const label = promptDisplayLabel(slot);
     if (def.requireText && !text.trim()) {
-        showToast('warning', `"${def.label}"은(는) 비워 둘 수 없습니다. 기본값으로 되돌리려면 "기본값 복원"을 누르십시오.`);
+        showToast('warning', `"${label}"은(는) 비워 둘 수 없습니다. 기본값으로 되돌리려면 "기본값 복원"을 누르십시오.`);
         return;
     }
-    setCustomPrompt(currentPromptSlot, text);
+    // [공통] 칸 — 이 탭에만 / 이 칸을 쓰는 모든 탭에
+    let scopes = [scope];
+    if (isScopedSlot(slot)) {
+        const all = promptScopesOf(slot);
+        const choice = await chooseDialog('어느 탭에 적용할까요?',
+            `<p>"${escapeHtml(label.replace(/^\[공통\]\s*/, ''))}"은(는) [공통] 칸입니다. 이 탭(${SCOPE_LABELS[scope]})에만 적용하거나, 이 칸을 쓰는 모든 탭(${all.map(item => SCOPE_LABELS[item]).join('·')})에 똑같이 적용할 수 있습니다.</p>`,
+            [{ key: 'this', text: '이 탭만' }, { key: 'all', text: '모든 탭' }]);
+        if (!choice) return;
+        if (choice === 'all') scopes = all;
+    }
+    for (const item of scopes) setCustomPrompt(slot, text, item);
     populatePromptSlots();
     updatePromptStatus();
     renderStructure();
     renderSupportIdentity();
-    showToast('success', isPromptCustomized(currentPromptSlot)
-        ? `"${def.label}" 수정본이 적용되었습니다.`
-        : `"${def.label}" 기본값과 같아 기본값을 사용합니다.`);
+    const where = scopes.length > 1 ? '모든 탭에 ' : '';
+    showToast('success', isPromptCustomized(slot, scope)
+        ? `"${label}" 수정본이 ${where}적용되었습니다.`
+        : `"${label}" 기본값과 같아 ${where}기본값을 사용합니다.`);
+}
+
+// ===== 프롬프트 프리셋 — 탭마다 따로 (예전 프리셋은 "전체": 불러오면 모든 탭이 바뀜) =====
+function presetsForScope(scope) {
+    return (getSettings()?.promptPresets || [])
+        .map((preset, idx) => ({ preset, idx }))
+        .filter(({ preset }) => !preset.scope || preset.scope === scope);
+}
+
+// 그 탭의 수정본 (그 탭 전용 칸 + 그 탭의 [공통] 칸)
+function scopePrompts(settings, scope) {
+    const keys = new Set(promptKeysOfScope(scope));
+    return Object.fromEntries(Object.entries(settings.customPrompts || {}).filter(([key]) => keys.has(key)));
+}
+
+function scopePlacement(settings, scope) {
+    const slot = SCOPE_GUIDELINE_SLOT[scope];
+    if (!slot) return null;
+    const place = getGuidelinesPlacement(slot);
+    return place !== 'user' ? { [slot]: place } : null;
+}
+
+function hasScopeEdits(settings, scope) {
+    return Object.keys(scopePrompts(settings, scope)).length > 0 || !!scopePlacement(settings, scope);
+}
+
+// 그 탭의 수정본만 바꿈 (다른 탭은 그대로)
+function replaceScopePrompts(settings, scope, prompts, placement) {
+    const keys = new Set(promptKeysOfScope(scope));
+    const kept = Object.entries(settings.customPrompts || {}).filter(([key]) => !keys.has(key));
+    const incoming = Object.entries(prompts || {}).filter(([key]) => keys.has(key));
+    settings.customPrompts = Object.fromEntries([...kept, ...structuredClone(incoming)]);
+    const slot = SCOPE_GUIDELINE_SLOT[scope];
+    if (slot) {
+        settings.guidelinesPlacement = {
+            ...normalizeGuidelinesPlacement(settings.guidelinesPlacement),
+            [slot]: normalizeGuidelinesPlacement(placement)[slot],
+        };
+    }
 }
 
 function populatePromptPresets() {
-    const presets = getSettings()?.promptPresets || [];
+    const scope = currentScope();
     const $select = $('#pf-prompt-preset-select');
 
     $select.empty();
     $select.append('<option value="">프리셋을 선택하십시오...</option>');
-    // 고정 프리셋 — 모든 프롬프트를 기본값으로 (지울 수 없음)
-    $select.append('<option value="default">기본 (모든 프롬프트 기본값)</option>');
-    presets.forEach((preset, idx) => {
+    // 고정 프리셋 — 이 탭의 프롬프트를 모두 기본값으로 (지울 수 없음)
+    $select.append(`<option value="default">기본 (${SCOPE_LABELS[scope]} 탭 프롬프트 모두 기본값)</option>`);
+    for (const { preset, idx } of presetsForScope(scope)) {
         const count = Object.keys(preset.prompts || {}).length;
-        $select.append(`<option value="${idx}">${escapeHtml(preset.name)} (${count}개 수정)</option>`);
-    });
+        $select.append(`<option value="${idx}">${escapeHtml(preset.name)} (${preset.scope ? '' : '전체 · '}${count}개 수정)</option>`);
+    }
 }
 
 async function onPromptPresetSave() {
@@ -4913,25 +5099,29 @@ async function onPromptPresetSave() {
     if (isPromptEditorDirty() && !(await askConfirm('편집기에 적용하지 않은 변경이 있습니다. 적용된 내용만 저장하시겠습니까?'))) return;
 
     const settings = getSettings();
-    const prompts = structuredClone(settings.customPrompts || {});
-    if (!Object.keys(prompts).length) {
-        showToast('warning', '수정한 프롬프트가 없습니다. 기본값은 프리셋으로 저장할 필요가 없습니다.');
+    const scope = currentScope();
+    const prompts = structuredClone(scopePrompts(settings, scope));
+    const placement = scopePlacement(settings, scope);
+    if (!Object.keys(prompts).length && !placement) {
+        showToast('warning', `${SCOPE_LABELS[scope]} 탭에서 수정한 프롬프트가 없습니다. 기본값은 프리셋으로 저장할 필요가 없습니다.`);
         return;
     }
 
     settings.promptPresets ||= [];
-    const existIdx = settings.promptPresets.findIndex(p => p.name === name);
+    const preset = { name, scope, prompts };
+    if (placement) preset.guidelinesPlacement = placement;
+    const existIdx = settings.promptPresets.findIndex(p => p.name === name && p.scope === scope);
     if (existIdx >= 0) {
-        if (!(await askConfirm(`프리셋 "${name}"을(를) 덮어쓰시겠습니까?`))) return;
-        settings.promptPresets[existIdx] = { name, prompts };
+        if (!(await askConfirm(`${SCOPE_LABELS[scope]} 프리셋 "${name}"을(를) 덮어쓰시겠습니까?`))) return;
+        settings.promptPresets[existIdx] = preset;
     } else {
-        settings.promptPresets.push({ name, prompts });
+        settings.promptPresets.push(preset);
     }
 
     saveSettings();
     populatePromptPresets();
     $('#pf-prompt-preset-name').val('');
-    showToast('success', `프리셋 "${name}"이(가) 저장되었습니다.`);
+    showToast('success', `${SCOPE_LABELS[scope]} 프리셋 "${name}"이(가) 저장되었습니다.`);
 }
 
 // 프리셋을 불러온 뒤 — 편집 칸·구조 안내·서포터 이름 다시 그리기
@@ -4945,16 +5135,18 @@ function refreshAfterPromptPreset() {
 async function onPromptPresetLoad() {
     const value = $('#pf-prompt-preset-select').val();
     const settings = getSettings();
+    const scope = currentScope();
+    const scopeName = SCOPE_LABELS[scope];
     if (value === 'default') {
-        if (!Object.keys(settings.customPrompts || {}).length) {
-            showToast('info', '이미 모든 프롬프트가 기본값입니다.');
+        if (!hasScopeEdits(settings, scope)) {
+            showToast('info', `이미 ${scopeName} 탭의 프롬프트가 모두 기본값입니다.`);
             return;
         }
-        if (!(await askConfirm('모든 프롬프트를 기본값으로 되돌리시겠습니까? 지금 수정한 프롬프트는 사라집니다. (남겨 두려면 먼저 프리셋으로 저장하십시오)'))) return;
-        settings.customPrompts = {};
+        if (!(await askConfirm(`${scopeName} 탭의 프롬프트를 모두 기본값으로 되돌리시겠습니까? 이 탭에서 수정한 프롬프트는 사라지고, 다른 탭은 그대로입니다. (남겨 두려면 먼저 프리셋으로 저장하십시오)`))) return;
+        replaceScopePrompts(settings, scope, {}, null);
         saveSettings();
         refreshAfterPromptPreset();
-        showToast('success', '모든 프롬프트를 기본값으로 되돌렸습니다.');
+        showToast('success', `${scopeName} 탭의 프롬프트를 기본값으로 되돌렸습니다.`);
         return;
     }
     const idx = parseInt(value, 10);
@@ -4963,10 +5155,17 @@ async function onPromptPresetLoad() {
         showToast('warning', '불러올 프리셋을 선택하십시오.');
         return;
     }
-    if (Object.keys(settings.customPrompts || {}).length
-        && !(await askConfirm(`프리셋 "${preset.name}"을(를) 적용하면 지금 수정한 프롬프트가 모두 바뀝니다. 계속하시겠습니까?`))) return;
-
-    settings.customPrompts = structuredClone(preset.prompts || {});
+    if (preset.scope) {
+        if (hasScopeEdits(settings, preset.scope)
+            && !(await askConfirm(`프리셋 "${preset.name}"을(를) 적용하면 ${SCOPE_LABELS[preset.scope]} 탭에서 수정한 프롬프트가 모두 바뀝니다. 다른 탭은 그대로입니다. 계속하시겠습니까?`))) return;
+        replaceScopePrompts(settings, preset.scope, preset.prompts, preset.guidelinesPlacement);
+    } else {
+        // 전체 프리셋 (예전 방식) — 모든 탭이 바뀜
+        if (Object.keys(settings.customPrompts || {}).length
+            && !(await askConfirm(`전체 프리셋 "${preset.name}"을(를) 적용하면 모든 탭(페르소나·봇·서포터)의 수정본이 바뀝니다. 계속하시겠습니까?`))) return;
+        settings.customPrompts = structuredClone(preset.prompts || {});
+        settings.guidelinesPlacement = normalizeGuidelinesPlacement(preset.guidelinesPlacement);
+    }
     saveSettings();
     refreshAfterPromptPreset();
     showToast('success', `프리셋 "${preset.name}"을(를) 적용했습니다.`);
@@ -4996,6 +5195,7 @@ async function onPromptPresetDelete() {
 const LEGACY_SLOT_LABELS = {
     system: '생성 시스템 프롬프트', regen: '섹션 재생성 시스템 프롬프트', translate: '번역 시스템 프롬프트',
     modify: '전체 수정 시스템 프롬프트', userNote: '{{user}} 안내', preamble: '요청 앞머리', closing: '요청 끝맺음',
+    supporterRules: '서포터 대화 규칙 (나누기 전)',
 };
 
 function legacyItems() {
@@ -5056,7 +5256,7 @@ function renderStructure() {
     let previousWhere = '';
     $('#pf-structure-list').html(items.map((item, idx) => {
         const group = item.where !== previousWhere
-            ? `<li class="pf-structure-group">${item.where === 'system' ? '시스템 메시지' : '사용자 메시지'}</li>`
+            ? `<li class="pf-structure-group">${{ system: '시스템 메시지', user: '사용자 메시지', chat: '대화 기록' }[item.where] || item.where}</li>`
             : '';
         previousWhere = item.where;
         return `${group}
