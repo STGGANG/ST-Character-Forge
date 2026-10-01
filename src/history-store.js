@@ -158,6 +158,12 @@ export function getHistoryBackend() {
     return backend;
 }
 
+// 이미 읽어 둔 기록 (아직 안 읽었으면 빈 목록) — 생성 요청을 만들 때 파일을 새로 읽지 않으려고
+// (대장간 창을 열 때 기록을 읽어 둠)
+export function historySnapshot() {
+    return cache || [];
+}
+
 export async function listHistory({ refresh = false } = {}) {
     await init();
     migrateChats(); // 처음 한 번, 뒤에서 조용히 (기다리지 않음)

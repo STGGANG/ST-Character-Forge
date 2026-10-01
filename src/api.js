@@ -263,6 +263,7 @@ async function streamChatCompletion(context, payload, signal) {
     let text = '';
     let truncated = false;
     let model = '';
+    let gaps = 0; // 읽지 못한 응답 조각 (그 자리의 글이 빠짐)
 
     while (true) {
         const { done, value } = await reader.read();
@@ -276,6 +277,7 @@ async function streamChatCompletion(context, payload, signal) {
         try {
             parsed = JSON.parse(raw);
         } catch {
+            if (/^\s*[[{]/.test(raw)) gaps++;
             continue;
         }
         if (parsed?.error) throw new Error(streamErrorMessage(raw, response.status));
@@ -290,7 +292,8 @@ async function streamChatCompletion(context, payload, signal) {
         text += joinGeminiParts(parsed?.candidates?.[0]?.content?.parts) ?? piece;
         state.progressListener?.(text.length, replyState.reasoning.length);
     }
-    return { text, truncated, model, reasoningChars: replyState.reasoning.length };
+    if (gaps) log(`Stream: ${gaps} chunk(s) could not be parsed`);
+    return { text, truncated, model, gaps, reasoningChars: replyState.reasoning.length };
 }
 
 // Chat Completion — 실리태번 설정(모델·프록시·샘플러)은 사용하되 메시지는 가공하지 않음

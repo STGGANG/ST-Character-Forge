@@ -13,6 +13,7 @@ import {
 } from './state.js';
 import { getPrompt, getGuidelinesPlacement, getPromptLabel } from './storage.js';
 import { callGenerationAPI } from './api.js';
+import { historySnapshot } from './history-store.js';
 import { getCharacterKey, getSelectedEntries, getSelectedBookNames, MANUAL_CHARACTER_KEY, NO_CHARACTER_KEY } from './worldinfo.js';
 
 function cleanExtensionTags(text) {
@@ -41,18 +42,32 @@ export function cleanGeneratedText(text, { scene = false } = {}) {
         .replace(/<\/pic>/gi, '')
         .replace(/<image_generation>[\s\S]*?<\/image_generation>/gi, '')
         .replace(/<\/?img[^>]*>/gi, '')
-        .replace(/<status[^>]*>[\s\S]*?<\/status>/gi, '')
-        .replace(/<choice[^>]*>[\s\S]*?<\/choice>/gi, '')
         // ``` 코드블록으로 감싼 경우
         .replace(/^```[a-z]*\n?/gm, '')
         .replace(/^```\s*$/gm, '');
 
-    const lines = cleaned.trim().split('\n');
+    const lines = stripEdgeBlocks(cleaned).trim().split('\n');
     while (lines.length && WRAPPER_TAG_LINE.test(lines[0].trim())) lines.shift();
     while (lines.length && WRAPPER_TAG_LINE.test(lines[lines.length - 1].trim())) lines.pop();
     cleaned = dropStrayHeaders(lines.join('\n'));
 
     return dropChatter(cleaned.replace(/\n{3,}/g, '\n\n').trim(), { scene });
+}
+
+// 상태창·선택지 블록 (<status>…</status>, <choice>…</choice>) — 결과 맨 앞·맨 끝에 붙은 것만 뗌
+// (본문 중간에 일부러 쓴 것까지 지우면 그 섹션 내용이 빠진 것처럼 보임)
+const EDGE_BLOCK_TAGS = 'status|choice';
+function stripEdgeBlocks(text) {
+    let rest = String(text || '');
+    const lead = new RegExp(String.raw`^\s*<(${EDGE_BLOCK_TAGS})\b[^>]*>[\s\S]*?<\/\1>`, 'i');
+    for (let m = rest.match(lead); m; m = rest.match(lead)) rest = rest.slice(m[0].length);
+    const tail = new RegExp(String.raw`<\/(${EDGE_BLOCK_TAGS})>\s*$`, 'i');
+    for (let m = rest.match(tail); m; m = rest.match(tail)) {
+        const open = rest.slice(0, m.index).search(new RegExp(String.raw`<${m[1]}\b[^>]*>(?![\s\S]*<${m[1]}\b)`, 'i'));
+        if (open < 0) break;
+        rest = rest.slice(0, open);
+    }
+    return rest;
 }
 
 // ===== 사족·거절 방어 =====
@@ -582,6 +597,38 @@ const TASK_CREATE_BOT = 'Create a new character profile for a roleplay bot, and 
 const TASK_CREATE_WORLD = 'Create the setting for a roleplay bot: the world the story takes place in, with no character profile. People appear only as part of the world, in the sections where they belong.';
 const NO_TARGET_NOTE = 'There is no single target character: design {{user}} to fit the world in <reference>, as someone who could meet its characters. Wherever the instructions mention the target character, think of the characters and setting in the world information instead.';
 const SETTING_TITLE = '# Setting';
+// 같은 요청으로 이미 만든 초안이 있을 때 (같은 입력으로 다시 만들면 이름·핵심 설정이 매번 같게 나오는 것을 막으려고)
+const PREVIOUS_DRAFTS_NOTE = 'Earlier drafts have already been made from this same request (names used: {names}). Unless the concept fixes them, don\'t copy those drafts; imagine and take a fresh direction instead.';
+const PREVIOUS_DRAFTS_LIMIT = 5;
+
+// "같은 요청" — 모드·세계관만·참고 대상(카드 또는 직접 입력 이름)·(대상 없이 만들 때) 월드인포·컨셉이 같음
+function draftKey({ mode, worldOnly, charAvatar, manualName, noTarget, wiNames, conceptText }) {
+    return JSON.stringify([
+        mode === 'bot' ? 'bot' : 'persona', !!worldOnly, charAvatar || '', manualName || '',
+        !!noTarget, noTarget ? [...(wiNames || [])].sort() : [], String(conceptText || '').trim(),
+    ]);
+}
+
+// 지금 결과(저장 안 했을 수도 있음)와 기록에서, 같은 요청으로 만든 초안의 이름 (최근 것부터, 겹치지 않게)
+function previousDraftNames(meta) {
+    const key = draftKey({
+        mode: meta.mode, worldOnly: meta.worldOnly,
+        charAvatar: meta.charData && !meta.charData.isManual ? getCharacterKey(meta.charData) : '',
+        manualName: meta.charData?.isManual ? getCharName(meta.charData) : '',
+        noTarget: meta.noTarget, wiNames: meta.wiNames, conceptText: meta.conceptText,
+    });
+    const drafts = [state.currentGeneration, ...historySnapshot()].filter(item => item?.fullText && item.templateId !== 'manual');
+    const names = [];
+    for (const item of drafts) {
+        const itemKey = draftKey({ ...item, manualName: item.manualCharacter?.name || '' });
+        if (itemKey !== key) continue;
+        const name = (item.worldOnly ? guessWorldName(item.fullText) : guessProfileName(item.fullText)) || '';
+        if (name && !names.includes(name)) names.push(name);
+        if (names.length >= PREVIOUS_DRAFTS_LIMIT) break;
+    }
+    return names;
+}
+
 const BASE_PERSONA_NOTE = 'The user chose one of their existing personas as a base, in <base_persona>. Build on it as the user\'s concept says (for example, a new persona in a similar vein, or the same persona fleshed out). If the concept doesn\'t say, keep its established facts and fill out the rest to fit the target character.';
 const MULTI_CHARACTER_NOTE = 'If the concept asks for several main characters (a multi-character bot), write the full profile for each of them in turn. Side characters belong in the relevant sections, such as relationships, not in full profiles of their own.';
 
@@ -790,10 +837,46 @@ export function updateFromEditedText(newText) {
         : parseResponse(newText);
 }
 
-function checkCompleteness({ kind, truncated, expected = 0, text }) {
+// 섹션 이름 비교용 (##·굵은 표시를 떼고 소문자로)
+function headerKey(header) {
+    return headerLabel(header).toLowerCase();
+}
+
+function mainSectionHeaders(text) {
+    return findSectionHeaders(String(text || '').trim()).filter(h => !h.title).map(h => h.fullMatch);
+}
+
+// 요청한 섹션 헤더를 ###·# 이나 **굵은 줄**로 쓴 경우 ## 로 바로잡기
+// (안 그러면 그 섹션이 앞 섹션 카드에 합쳐져, 중간 섹션이 사라지거나 잘린 것처럼 보임)
+export function normalizeHeaderLevels(text, expected) {
+    const lines = String(text || '').split('\n');
+    const present = new Set(lines.filter(line => /^##[ \t]+\S/.test(line)).map(headerKey));
+    const wanted = new Map(expected.map(header => [headerKey(header), header]));
+    return lines.map(line => {
+        const trimmed = line.trim();
+        if (/^##[ \t]/.test(trimmed) || !isHeaderLine(trimmed)) return line;
+        const key = headerKey(trimmed);
+        if (!wanted.has(key) || present.has(key)) return line;
+        present.add(key);
+        return wanted.get(key);
+    }).join('\n');
+}
+
+// 결과가 다 왔는지 — 출력 한도에 걸림(length) / 스트리밍 조각을 못 읽음(stream) /
+// 마지막 섹션까지 썼는데 중간 섹션만 빠짐(skipped — 잘린 게 아님) / 뒤쪽 섹션이 없음(sections — 잘렸을 수 있음)
+// headers: 있어야 할 섹션 헤더 (순서대로) — 마지막 헤더가 결과에 있으면 끝까지 쓴 것으로 봄
+function checkCompleteness({ kind, truncated, expected = 0, text, headers = [], gaps = 0 }) {
     const actual = countMainSections(text);
     if (truncated) return { kind, reason: 'length', expected, actual };
-    if (expected > 0 && actual < expected) return { kind, reason: 'sections', expected, actual };
+    if (gaps > 0) return { kind, reason: 'stream', expected, actual, gaps };
+    if (expected > 0 && actual < expected) {
+        const written = new Set(mainSectionHeaders(text).map(headerKey));
+        if (headers.length && written.has(headerKey(headers.at(-1)))) {
+            const missing = headers.filter(header => !written.has(headerKey(header))).map(headerLabel);
+            return { kind, reason: 'skipped', expected, actual, missing };
+        }
+        return { kind, reason: 'sections', expected, actual };
+    }
     return null;
 }
 
@@ -854,6 +937,7 @@ function buildGenerateRequest(config = {}) {
     const userParts = [
         isGuided ? `The user's concept for the ${worldOnly ? 'world' : (isBot ? 'character' : 'persona')}. Follow it, and fill in whatever it leaves open:\n${wrap('concept', normalizeMacros(conceptText, charLabel))}` : '',
         additional ? `Additional instructions for this version (where they conflict with the concept, follow these):\n${wrap('extra_instructions', normalizeMacros(additional, charLabel))}` : '',
+        config.previousNames?.length ? PREVIOUS_DRAFTS_NOTE.replace('{names}', config.previousNames.join(', ')) : '',
     ];
     // 자유 입력은 양식이 인물 구성을 정하므로 제외
     // 다인봇 — 인물마다 "# 이름" 줄로 나눠야 결과에서 구분됨 (기존 캐릭터 참고는 원본 틀의 제목을 따름)
@@ -1632,6 +1716,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
         add('user', '컨셉 설명', false, '<concept> — 가이드 모드에서 입력한 컨셉',
             guided && !!conceptText.trim(), guided ? '컨셉 칸이 비어 있음' : '자유 생성 모드');
         add('user', '재생성 지시', false, '<extra_instructions> — 전체 재생성 때 입력한 새 지시', false, '전체 재생성에서만');
+        add('user', '이전 초안', false, '같은 요청으로 만든 이전 초안의 이름 — 그대로 복제하지 않고 새 방향으로', false, '같은 요청으로 만든 초안이 있을 때만');
     } else if (kind === 'regen') {
         add('user', '재생성 지시', false, '<instruction> — 섹션 재생성 때 입력한 지시', false, '적었을 때만');
     } else {
@@ -1676,7 +1761,7 @@ export function markModified() {
 }
 
 async function requestText(op, messages, label) {
-    const { text, truncated, model } = await callGenerationAPI(messages, { signal: op.signal, label });
+    const { text, truncated, model, gaps } = await callGenerationAPI(messages, { signal: op.signal, label });
     if (!isCurrentOperation(op)) throw cancelledError();
 
     const scene = String(label).startsWith('그리팅');
@@ -1687,12 +1772,14 @@ async function requestText(op, messages, label) {
         const snippet = cleaned.replace(/\s+/g, ' ').slice(0, 80);
         throw new Error(`모델이 요청을 거절한 것 같습니다. 다시 시도하거나 다른 모델·연결 프로필로 시도해 보십시오. (받은 답: "${snippet}${cleaned.length > 80 ? '…' : ''}")`);
     }
-    return { text: cleaned, truncated, model: model || '' };
+    return { text: cleaned, truncated, model: model || '', gaps: gaps || 0 };
 }
 
 export async function generatePersona(config = {}) {
     if (state.selectedCharData) await ensureFullCharacter(state.selectedCharData);
-    const { messages, meta } = buildGenerateRequest(config);
+    const first = buildGenerateRequest(config);
+    const previousNames = previousDraftNames(first.meta);
+    const { messages, meta } = previousNames.length ? buildGenerateRequest({ ...config, previousNames }) : first;
     const settings = getSettings();
     const isBot = meta.mode === 'bot';
     const op = beginOperation();
@@ -1702,7 +1789,9 @@ export async function generatePersona(config = {}) {
 
         const received = await requestText(op, messages, isBot ? '봇 생성' : '생성');
         const truncated = received.truncated;
-        const repaired = meta.expectedHeaders.length ? repairDuplicateHeaders(received.text, meta.expectedHeaders) : received.text;
+        const repaired = meta.expectedHeaders.length
+            ? repairDuplicateHeaders(normalizeHeaderLevels(received.text, meta.expectedHeaders), meta.expectedHeaders)
+            : received.text;
         // 자유 입력·기존 캐릭터 참고는 양식(원본)의 제목 그대로 둠
         const text = meta.isSheetMode || meta.isMirror ? repaired : tidyTitleLines(repaired);
         const charData = meta.charData;
@@ -1736,7 +1825,7 @@ export async function generatePersona(config = {}) {
             resultKind: 'original',
             model: received.model,
             timestamp: Date.now(),
-            incomplete: checkCompleteness({ kind: 'generate', truncated, expected: meta.expectedSections, text }),
+            incomplete: checkCompleteness({ kind: 'generate', truncated, expected: meta.expectedSections, text, headers: meta.expectedHeaders, gaps: received.gaps }),
         };
 
         log(`${isBot ? 'Bot character' : 'Persona'} generated successfully`);
@@ -1745,6 +1834,18 @@ export async function generatePersona(config = {}) {
     } finally {
         endOperation(op);
     }
+}
+
+// 섹션 재생성 결과에 원래 헤더 맞추기 — 첫 줄이 원래와 같은 단계의 헤더(## …)일 때만 그대로 두고,
+// 헤더가 없거나 ###·# 제목·굵은 줄로 시작하면 원래 헤더를 씀 (이름이 같으면 그 줄을 바꾸고, 아니면 앞에 붙임)
+// — 안 그러면 다시 불러왔을 때 이 섹션이 앞 섹션에 합쳐져 사라진 것처럼 보임
+function withSectionHeader(text, original) {
+    const lines = text.split('\n');
+    const first = lines[0].trim();
+    const level = header => header.match(/^(#{1,6})[ \t]/)?.[1].length ?? 0;
+    if (isHeaderLine(first) && level(first) === level(original)) return text;
+    if (isHeaderLine(first) && headerKey(first) === headerKey(original)) return [original, ...lines.slice(1)].join('\n');
+    return `${original}\n${text}`;
 }
 
 export async function regenerateSection(sectionKey, instruction = '') {
@@ -1758,8 +1859,7 @@ export async function regenerateSection(sectionKey, instruction = '') {
 
         const { text, truncated } = await requestText(op, messages, `섹션 재생성 — ${meta.sectionTitle}`);
 
-        // 헤더를 빠뜨린 응답이면 원래 헤더를 붙여 섹션 구분이 깨지지 않게 함
-        const content = isHeaderLine(text.split('\n')[0]) ? text : `${meta.section.header}\n${text}`;
+        const content = withSectionHeader(text, meta.section.header);
         state.currentGeneration.sections[sectionKey] = {
             header: content.split('\n')[0].trim(),
             content,
@@ -1811,8 +1911,9 @@ export async function translateProfile(targetLang) {
         gen.model = received.model;
         refreshBotName(gen);
         gen.incomplete = checkCompleteness({
-            kind: 'translate', truncated, text,
+            kind: 'translate', truncated, text, gaps: received.gaps,
             expected: gen.isCustomSheet ? 0 : countMainSections(source),
+            headers: gen.isCustomSheet ? [] : mainSectionHeaders(source), // 템플릿 결과는 ## 헤더를 그대로 둠
         });
 
         return gen;
@@ -1829,6 +1930,7 @@ export async function modifyProfile(instruction) {
     const { messages } = buildModifyRequest(instruction);
     const gen = state.currentGeneration;
     const expected = gen.isCustomSheet ? 0 : countMainSections(gen.fullText);
+    const headers = gen.isCustomSheet ? [] : mainSectionHeaders(gen.fullText);
     const op = beginOperation();
 
     try {
@@ -1843,7 +1945,7 @@ export async function modifyProfile(instruction) {
         gen.resultKind = 'modified';
         gen.model = received.model;
         refreshBotName(gen);
-        gen.incomplete = checkCompleteness({ kind: 'modify', truncated, expected, text });
+        gen.incomplete = checkCompleteness({ kind: 'modify', truncated, expected, text, headers, gaps: received.gaps });
 
         return gen;
 

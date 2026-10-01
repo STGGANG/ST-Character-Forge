@@ -170,6 +170,7 @@ const UPDATE_HISTORY = [
             '모루 남매 대화: Enter는 줄바꿈, Ctrl+Enter로 보내기.',
             '모루 남매 대화는 기록 자동 저장 설정과 상관없이 항상 저장됩니다.',
             '결과의 토큰 수 옆에 만든 AI 모델이 표시됩니다.',
+            '응답이 중간에 잘려 보일 수 있던 문제를 보완했습니다.',
         ],
     },
     {
@@ -2147,7 +2148,7 @@ async function onGenerateClick() {
         playGlint('.pf-result-toolbar');
         const what = result.worldOnly ? '세계관이' : (result.mode === 'bot' ? '봇 캐릭터가' : '페르소나가');
         showToast(result.incomplete ? 'warning' : 'success',
-            result.incomplete ? `${what} 생성됐지만 끝까지 작성되지 않은 것 같습니다.` : pickRandom(DONE_TEXTS[result.worldOnly ? 'world' : (result.mode === 'bot' ? 'bot' : 'persona')]));
+            result.incomplete ? `${what} 생성됐지만 ${INCOMPLETE_TOAST[result.incomplete.reason] || INCOMPLETE_TOAST.sections}` : pickRandom(DONE_TEXTS[result.worldOnly ? 'world' : (result.mode === 'bot' ? 'bot' : 'persona')]));
         countForged();
         playChime('done');
 
@@ -2318,6 +2319,14 @@ function updateResultKindBadge() {
         .text(RESULT_KIND_LABELS[kind] || '');
 }
 
+// 생성 직후 알림 (자세한 안내는 결과 위 배너)
+const INCOMPLETE_TOAST = {
+    length: '끝까지 작성되지 않은 것 같습니다.',
+    sections: '끝까지 작성되지 않은 것 같습니다.',
+    skipped: '일부 섹션이 빠졌습니다.',
+    stream: '중간 내용이 빠졌을 수 있습니다.',
+};
+
 function updateIncompleteBanner() {
     const info = state.currentGeneration?.incomplete;
     const $banner = $('#pf-incomplete-banner');
@@ -2326,17 +2335,26 @@ function updateIncompleteBanner() {
         return;
     }
 
+    const tokenTip = ' 설정 탭의 최대 출력 토큰을 늘린 뒤 다시 시도해 주십시오.';
     let message;
     if (info.reason === 'length') {
-        message = '출력 한도(최대 출력 토큰)에 걸려 결과가 중간에 잘렸습니다.';
+        message = `출력 한도(최대 출력 토큰)에 걸려 결과가 중간에 잘렸습니다.${tokenTip}`;
+    } else if (info.reason === 'stream') {
+        message = `스트리밍으로 받는 중 응답 조각 ${info.gaps}개를 읽지 못해, 중간 내용이 빠졌을 수 있습니다. 다시 시도하거나 설정 탭에서 "스트리밍으로 받기"를 끄고 받아 보십시오.`;
+    } else if (info.reason === 'skipped') {
+        // 마지막 섹션까지 쓴 결과 — 잘린 게 아니라 모델이 중간 섹션을 건너뜀
+        const names = info.missing?.length ? `'${info.missing.join("', '")}'` : `${info.expected - info.actual}개`;
+        message = info.kind === 'modify'
+            ? `섹션 ${names}이(가) 빠졌습니다. 끝까지 쓴 결과라 잘린 것은 아니니, 의도한 삭제가 아니라면 전체 수정으로 다시 넣어 달라고 해 주십시오.`
+            : `섹션 ${names}이(가) 빠졌습니다. 끝까지 쓴 결과라 잘린 것은 아니니, 필요하면 전체 수정으로 그 섹션을 추가해 달라고 하거나 다시 생성해 주십시오.`;
     } else if (info.kind === 'translate') {
-        message = `원문 섹션 ${info.expected}개 중 ${info.actual}개만 번역되어, 뒷부분이 잘렸을 수 있습니다.`;
+        message = `원문 섹션 ${info.expected}개 중 ${info.actual}개만 번역되어, 뒷부분이 잘렸을 수 있습니다.${tokenTip}`;
     } else if (info.kind === 'modify') {
-        message = `섹션이 ${info.expected}개에서 ${info.actual}개로 줄었습니다. 의도한 삭제가 아니라면 뒷부분이 잘렸을 수 있습니다.`;
+        message = `섹션이 ${info.expected}개에서 ${info.actual}개로 줄었습니다. 의도한 삭제가 아니라면 뒷부분이 잘렸을 수 있습니다.${tokenTip}`;
     } else {
-        message = `요청한 섹션 ${info.expected}개 중 ${info.actual}개만 작성되어, 뒷부분이 잘렸을 수 있습니다.`;
+        message = `요청한 섹션 ${info.expected}개 중 ${info.actual}개만 작성되어, 뒷부분이 잘렸을 수 있습니다.${tokenTip}`;
     }
-    $('#pf-incomplete-text').text(`${message} 설정 탭의 최대 출력 토큰을 늘린 뒤 다시 시도해 주십시오.`);
+    $('#pf-incomplete-text').text(message);
     $banner.show();
 }
 
