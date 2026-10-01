@@ -123,7 +123,7 @@ function migrateSettings(settings) {
     const freshRules = oldRules.filter(set => !knownRules.has(JSON.stringify(set.prompts)));
     if (freshRules.length) settings.legacyPrompts.push(...freshRules);
 
-    // [공통] 칸 수정본은 탭마다 따로 — 예전 한 칸짜리 수정본은 그 칸을 쓰는 탭마다 복사
+    // 여러 탭에 있는 칸의 수정본은 탭마다 따로 — 예전 한 칸짜리 수정본은 그 칸을 쓰는 탭마다 복사
     splitScopedPrompts(settings.customPrompts);
     for (const preset of settings.promptPresets) {
         if (preset.prompts) splitScopedPrompts(preset.prompts);
@@ -212,7 +212,7 @@ export function getGuidelinesPlacement(slot) {
 }
 
 // ===== 프롬프트 칸 =====
-// 탭(묶음): persona / bot / supporter. 여러 탭에서 쓰는 [공통] 칸은 기본값만 같고 수정본은 탭마다 따로 ("칸@탭" 키)
+// 탭(묶음): persona / bot / supporter. 여러 탭에 있는 칸은 기본값만 같고 수정본은 탭마다 따로 ("칸@탭" 키)
 export const PROMPT_SCOPES = ['persona', 'bot', 'supporter'];
 export const PROMPT_LABEL_MAX = 40;
 
@@ -224,7 +224,7 @@ export function isScopedSlot(slot) {
     return promptScopesOf(slot).length > 1;
 }
 
-// customPrompts에 저장되는 키 — [공통] 칸은 "칸@탭" (탭을 안 주거나 맞지 않으면 첫 탭)
+// customPrompts에 저장되는 키 — 여러 탭에 있는 칸은 "칸@탭" (탭을 안 주거나 맞지 않으면 첫 탭)
 export function promptKey(slot, scope) {
     if (!isScopedSlot(slot)) return slot;
     const scopes = promptScopesOf(slot);
@@ -237,7 +237,7 @@ export function isKnownPromptKey(key) {
     return scope === undefined ? !isScopedSlot(slot) : isScopedSlot(slot) && promptScopesOf(slot).includes(scope);
 }
 
-// 그 탭에 속한 저장 키 전부 (그 탭 전용 칸 + 그 탭의 [공통] 칸)
+// 그 탭에 속한 저장 키 전부 (그 탭 전용 칸 + 여러 탭에 있는 칸의 그 탭 수정본)
 export function promptKeysOfScope(scope) {
     return Object.keys(PROMPT_SLOTS).filter(slot => promptScopesOf(slot).includes(scope)).map(slot => promptKey(slot, scope));
 }
@@ -278,18 +278,21 @@ export function resetPrompt(slot, scope) {
     saveSettings();
 }
 
-// 표시 이름 — 직접 붙인 이름이 있으면 "[분류] 이름", 없으면 기본 이름
+// 목록 앞머리 — 여러 탭에 있는 칸은 지금 보고 있는 탭 이름 (수정본이 탭마다 따로라서)
+const SCOPE_PREFIX = { persona: '[페르소나]', bot: '[봇]', supporter: '[서포터]' };
+
+// 표시 이름 — 직접 붙인 이름이 있으면 그 이름, 앞머리는 그대로
 export function getPromptLabel(slot) {
     const name = state.settings?.promptLabels?.[slot];
     return typeof name === 'string' && name.trim() ? name.trim() : '';
 }
 
-export function promptDisplayLabel(slot) {
+export function promptDisplayLabel(slot, scope) {
     const def = PROMPT_SLOTS[slot];
     if (!def) return '';
-    const name = getPromptLabel(slot);
-    if (!name) return def.label;
-    const prefix = def.label.match(/^\[[^\]]+\]\s*/)?.[0] || '';
+    const ownPrefix = def.label.match(/^\[[^\]]+\]\s*/)?.[0] || '';
+    const name = getPromptLabel(slot) || def.label.slice(ownPrefix.length);
+    const prefix = isScopedSlot(slot) ? `${SCOPE_PREFIX[promptKey(slot, scope).split('@')[1]]} ` : ownPrefix;
     return `${prefix}${name}`;
 }
 

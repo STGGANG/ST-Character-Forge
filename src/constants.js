@@ -329,7 +329,7 @@ export const defaultSettings = {
     hammerTaps: 0,
 
     // 수정한 프롬프트 { [PROMPT_SLOTS 키]: 텍스트 } — 키가 없으면 기본 프롬프트 사용
-    // [공통] 칸(여러 탭에서 쓰는 칸)은 탭마다 따로: "칸@탭" (예: writingStyle@bot)
+    // 여러 탭에 있는 칸(문체 규칙·분량 등)은 탭마다 따로: "칸@탭" (예: writingStyle@bot)
     customPrompts: {},
     // 프롬프트 칸의 표시 이름 { [PROMPT_SLOTS 키]: 이름 } — 목록·구조 안내에만 쓰임
     promptLabels: {},

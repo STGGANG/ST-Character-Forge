@@ -270,13 +270,13 @@ export const PROMPT_SLOTS = {
         modes: ['bot'],
     },
     density: {
-        label: '[공통] 분량 — 밸런스형',
+        label: '분량 — 밸런스형',
         hint: '설정 탭 "분량"에서 "밸런스형"을 골랐을 때 생성·섹션 재생성·전체 수정에 들어갑니다. 장황하지 않게, 설명력이 높은 정보 위주로 쓰게 합니다. 시스템 메시지 앞부분 맨 끝(문체 규칙 뒤)에 <density> 태그로 들어갑니다.',
         default: DEFAULT_DENSITY,
         modes: ['persona', 'bot'],
     },
     densityCompact: {
-        label: '[공통] 분량 — 압축형',
+        label: '분량 — 압축형',
         hint: '설정 탭 "분량"에서 "압축형"을 골랐을 때 생성·섹션 재생성·전체 수정에 들어갑니다. 전체는 짧게(대부분 섹션은 한두 줄의 짧은 나열), 성격·동기처럼 중요한 부분만 필요한 만큼 쓰게 합니다. 시스템 메시지 앞부분 맨 끝(문체 규칙 뒤)에 <density> 태그로 들어갑니다.',
         default: DEFAULT_DENSITY_COMPACT,
         modes: ['persona', 'bot'],
@@ -288,13 +288,13 @@ export const PROMPT_SLOTS = {
         modes: ['bot'],
     },
     matureContent: {
-        label: '[공통] NSFW 지침 — 켰을 때만',
+        label: 'NSFW 지침 — 켰을 때만',
         hint: '설정 탭에서 NSFW 지침을 켰을 때만 들어갑니다. 페르소나·봇·세계관 생성, 섹션 재생성, 전체 수정, 그리팅, 번역, 모루 남매 대화에 모두 들어갑니다. 잘 따르도록 끝쪽 — 사용자가 적은 것(컨셉·지시·원문) 뒤, 출력 형식 바로 앞의 시스템 메시지로 <smut_guidance> 태그에 들어갑니다. 번역에서는 "원문에 있는 것만 그대로 노골적으로 옮기고 더하지 말 것"이라는 고정 문장이 뒤에 붙습니다. 남매 대화는 대화 기록 뒤(대화 태도 뒤·응답 형식 앞)입니다.',
         default: DEFAULT_MATURE_CONTENT,
         modes: ['persona', 'bot', 'supporter'],
     },
     writingStyle: {
-        label: '[공통] 문체 규칙',
+        label: '문체 규칙',
         hint: '페르소나·봇·세계관 생성과 섹션 재생성·전체 수정에서 시스템 메시지의 작업 지시·작성 원칙 뒤(분량 앞)에 <writing_style> 태그로 들어갑니다. 비워 두면 들어가지 않습니다. 꼭 막고 싶은 단어가 따로 있으면 추가 지침에 적는 편이 좋습니다.',
         default: DEFAULT_WRITING_STYLE,
         modes: ['persona', 'bot'],
@@ -393,19 +393,19 @@ export const PROMPT_SLOTS = {
     },
 
     templateFormat: {
-        label: '[공통] 템플릿 서식 규칙 — 템플릿·Choice일 때',
+        label: '템플릿 서식 규칙 — 템플릿·Choice일 때',
         hint: '템플릿·Choice 모드에서 섹션 안을 어떻게 쓸지 정합니다. 자유 입력·기존 캐릭터 참고(Mirror)에는 쓰이지 않습니다. 비우면 출력 형식에서 서식 규칙(Format:) 부분이 빠집니다.',
         default: DEFAULT_TEMPLATE_FORMAT,
         modes: ['persona', 'bot'],
     },
     translatorRole: {
-        label: '[공통] 번역가 역할',
+        label: '번역가 역할',
         hint: '번역 요청 시스템 프롬프트의 첫 문단입니다 (역할·성인 픽션·이미 있는 글을 옮길 뿐이라는 점). 프로필 번역은 결과의 탭(페르소나·봇), 그리팅 번역은 봇 탭의 글을 씁니다.',
         default: DEFAULT_TRANSLATOR_ROLE,
         modes: ['persona', 'bot'],
     },
     translateRules: {
-        label: '[공통] 번역 규칙',
+        label: '번역 규칙',
         hint: '번역 요청의 규칙입니다. {name_example}은 대상 언어에 맞는 이름 예시로 바뀝니다. 비우면 번역가 역할 문단만 들어갑니다.',
         default: DEFAULT_TRANSLATE_RULES,
         modes: ['persona', 'bot'],

@@ -4893,10 +4893,10 @@ function updatePromptUI() {
     renderStructure();
 }
 
-// 목록 순서 — 그 탭 전용([페르소나]·[봇]·[서포터]) → [세계관만] → [공통]
+// 목록 순서 — 그 탭 전용 → [세계관만] → 여러 탭에 있는 칸(문체 규칙·분량 등)
 function promptSlotGroup(slot) {
     const label = PROMPT_SLOTS[slot].label;
-    if (label.startsWith('[공통]')) return 2;
+    if (isScopedSlot(slot)) return 2;
     if (label.startsWith('[세계관만]')) return 1;
     return 0;
 }
@@ -4938,7 +4938,7 @@ function populatePromptSlots() {
     const slots = visiblePromptSlots();
     if (!slots.includes(currentPromptSlot)) currentPromptSlot = slots[0];
     $select.html(slots.map(slot =>
-        `<option value="${slot}">${escapeHtml(promptDisplayLabel(slot))}${isPromptCustomized(slot, scope) ? ' ● 수정됨' : ''}</option>`).join(''));
+        `<option value="${slot}">${escapeHtml(promptDisplayLabel(slot, scope))}${isPromptCustomized(slot, scope) ? ' ● 수정됨' : ''}</option>`).join(''));
     $select.val(currentPromptSlot);
 }
 
@@ -4948,8 +4948,9 @@ function loadPromptSlot(slot) {
     const def = PROMPT_SLOTS[currentPromptSlot];
     $('#pf-prompt-slot').val(currentPromptSlot);
     const renamed = getPromptLabel(currentPromptSlot) ? `원래 이름: ${def.label}. ` : '';
+    const others = promptScopesOf(currentPromptSlot).filter(item => item !== currentScope()).map(item => SCOPE_LABELS[item]);
     const shared = isScopedSlot(currentPromptSlot)
-        ? ' [공통] 칸은 기본값만 모든 탭이 같고, 고친 내용은 탭마다 따로 저장됩니다 (적용할 때 이 탭만·모든 탭 중에서 고름).'
+        ? ` 이 칸은 ${others.join('·')} 탭에도 있습니다 (기본값은 같음). 고친 내용은 탭마다 따로 저장되고, 적용할 때 다른 탭에도 똑같이 넣을 수 있습니다.`
         : '';
     $('#pf-prompt-slot-hint').text(`${renamed}${def.hint || ''}${shared}`);
     $('#pf-prompt-editor').val(getPrompt(currentPromptSlot, currentScope()));
@@ -5015,7 +5016,7 @@ async function onPromptSlotChange() {
     loadPromptSlot(next);
 }
 
-// [공통] 칸은 이 탭만 되돌림
+// 여러 탭에 있는 칸은 이 탭만 되돌림
 function onPromptReset() {
     resetPrompt(currentPromptSlot, currentScope());
     loadPromptSlot(currentPromptSlot);
@@ -5029,17 +5030,18 @@ async function onPromptApply() {
     const slot = currentPromptSlot;
     const scope = currentScope();
     const def = PROMPT_SLOTS[slot];
-    const label = promptDisplayLabel(slot);
+    const label = promptDisplayLabel(slot, scope);
     if (def.requireText && !text.trim()) {
         showToast('warning', `"${label}"은(는) 비워 둘 수 없습니다. 기본값으로 되돌리려면 "기본값 복원"을 누르십시오.`);
         return;
     }
-    // [공통] 칸 — 이 탭에만 / 이 칸을 쓰는 모든 탭에
+    // 여러 탭에 있는 칸 — 이 탭에만 / 다른 탭에도 똑같이
     let scopes = [scope];
     if (isScopedSlot(slot)) {
         const all = promptScopesOf(slot);
-        const choice = await chooseDialog('어느 탭에 적용할까요?',
-            `<p>"${escapeHtml(label.replace(/^\[공통\]\s*/, ''))}"은(는) [공통] 칸입니다. 이 탭(${SCOPE_LABELS[scope]})에만 적용하거나, 이 칸을 쓰는 모든 탭(${all.map(item => SCOPE_LABELS[item]).join('·')})에 똑같이 적용할 수 있습니다.</p>`,
+        const others = all.filter(item => item !== scope).map(item => SCOPE_LABELS[item]).join('·');
+        const choice = await chooseDialog('다른 탭에도 적용할까요?',
+            `<p>"${escapeHtml(label.replace(/^\[[^\]]+\]\s*/, ''))}"은(는) ${others} 탭에도 있는 칸입니다. 이 탭(${SCOPE_LABELS[scope]})에만 적용하거나, ${others} 탭에도 똑같이 적용할 수 있습니다.</p>`,
             [{ key: 'this', text: '이 탭만' }, { key: 'all', text: '모든 탭' }]);
         if (!choice) return;
         if (choice === 'all') scopes = all;
@@ -5062,7 +5064,7 @@ function presetsForScope(scope) {
         .filter(({ preset }) => !preset.scope || preset.scope === scope);
 }
 
-// 그 탭의 수정본 (그 탭 전용 칸 + 그 탭의 [공통] 칸)
+// 그 탭의 수정본 (그 탭 전용 칸 + 여러 탭에 있는 칸의 그 탭 수정본)
 function scopePrompts(settings, scope) {
     const keys = new Set(promptKeysOfScope(scope));
     return Object.fromEntries(Object.entries(settings.customPrompts || {}).filter(([key]) => keys.has(key)));
