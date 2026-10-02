@@ -103,6 +103,23 @@ export function describeConnection() {
 }
 
 // connectionProfile: 이 요청만 다른 연결 프로필로 보낼 때 (대화형 서포터)
+// 실리태번 서버가 자세한 이유 없이 거절할 때 보내는 응답 ({ error: true })
+const GENERIC_REJECT = 'API 요청이 거절되었습니다. 자세한 이유는 실리태번 서버 창(터미널)의 로그를 확인하십시오.';
+
+// 오류에서 보여 줄 문구 — Error가 아닌 객체(서버 응답 JSON 등)도 "[object Object]" 대신 내용으로
+function errorDetail(error) {
+    if (typeof error === 'string') return error;
+    const message = error?.cause?.message || error?.message || error?.error?.message
+        || (typeof error?.error === 'string' ? error.error : '') || error?.detail;
+    if (message) return String(message);
+    if (error?.error === true) return GENERIC_REJECT;
+    try {
+        const json = JSON.stringify(error);
+        if (json && json !== '{}') return json.slice(0, 300);
+    } catch { /* 문자열로 바꿀 수 없는 객체 */ }
+    return String(error ?? '알 수 없는 오류');
+}
+
 export async function callGenerationAPI(messages, { signal, label = '', connectionProfile } = {}) {
     const context = getContext();
     const settings = getSettings();
@@ -128,7 +145,7 @@ export async function callGenerationAPI(messages, { signal, label = '', connecti
     } catch (error) {
         record.status = 'error';
         if (signal?.aborted) throw cancelledError();
-        let detail = error?.cause?.message || error?.message || String(error);
+        let detail = errorDetail(error);
         // 한 번에 받는 요청이 오래 걸리면 중계 서버·게이트웨이가 연결을 끊음 (오류 문구가 "<none>" 등으로 보임)
         if (target.kind === 'cc' && !target.stream && Date.now() - startedAt >= 90000) {
             detail += ' — 응답이 오래 걸려 API 서버(중계 서버)가 연결을 끊은 것으로 보입니다. 설정 탭에서 "스트리밍으로 받기"를 켜 주십시오.';
@@ -226,6 +243,7 @@ function streamErrorMessage(body, status) {
         const data = JSON.parse(body);
         const message = data?.error?.message || (typeof data?.error === 'string' ? data.error : '') || data?.message || data?.detail;
         if (message) return String(message);
+        if (data?.error === true) return GENERIC_REJECT;
     } catch { /* 본문이 JSON이 아님 */ }
     const text = String(body || '').trim();
     return text ? text.slice(0, 300) : `서버 응답 ${status}`;
@@ -296,6 +314,16 @@ async function streamChatCompletion(context, payload, signal) {
     return { text, truncated, model, gaps, reasoningChars: replyState.reasoning.length };
 }
 
+// 실리태번 1.15 전에는 presetToGeneratePayload가 넘긴 메시지·연결 정보를 버리고 샘플러 값만 돌려줌
+// → 현재 연결이면 예전 방식(generateRaw)으로 보냄 (실리태번 설정 그대로, 잘림 여부·모델 이름은 알 수 없음)
+//   연결 프로필은 예전 방식으로 쓸 수 없어 안내 (조용히 다른 연결로 보내지 않게)
+function legacyFallback(target, messages) {
+    if (target.profile) {
+        throw new Error('이 실리태번 버전에서는 연결 프로필로 보낼 수 없습니다. 실리태번을 1.15 이상으로 업데이트하거나, API 연결을 "현재 연결 사용"으로 바꿔 주십시오.');
+    }
+    return sendViaGenerateRaw(messages, target.maxTokens);
+}
+
 // Chat Completion — 실리태번 설정(모델·프록시·샘플러)은 사용하되 메시지는 가공하지 않음
 async function sendChatCompletion(context, target, messages, signal) {
     const service = context.ChatCompletionService;
@@ -327,6 +355,7 @@ async function sendChatCompletion(context, target, messages, signal) {
 
     log(`Sending via ${target.label}${target.stream ? ' (streaming)' : ''}`);
     const payload = await service.presetToGeneratePayload(target.preset || {}, {}, base);
+    if (!Array.isArray(payload?.messages)) return legacyFallback(target, messages);
 
     payload.stream = !!target.stream;
     for (const key of ['stop', 'assistant_prefill', 'assistant_impersonation', 'tools', 'tool_choice', 'json_schema', 'response_format']) {
@@ -386,6 +415,7 @@ async function sendTextCompletion(context, target, messages, signal) {
 
     log(`Sending via ${target.label}`);
     const payload = await service.presetToGeneratePayload(target.preset || {}, {}, base);
+    if (payload?.prompt == null) return legacyFallback(target, messages);
     payload.stream = false;
     // 채팅용 정지 문자열("\n캐릭터이름:" 등)은 프로필의 대사 예시에서 출력을 끊으므로 인스트럭트 끝 표시만 사용
     payload.stopping_strings = instructStops;
@@ -408,9 +438,18 @@ async function sendViaGenerateRaw(messages, maxTokens) {
     const [system, ...rest] = messages;
 
     log('Using generateRaw fallback');
+    // 1.14 전: generateRaw(prompt, api, instructOverride, quietToLoud, systemPrompt, responseLength) — prompt는 글자만
+    if (generateRaw.length >= 2) {
+        const prompt = rest.map(m => protect(m.content)).join('\n\n');
+        const result = await generateRaw(prompt, null, false, false, protect(system.content), maxTokens || null);
+        return { text: result || '', truncated: false };
+    }
+    // Chat Completion은 user 역할 그대로, Text Completion은 이름("페르소나:")이 붙지 않게 system으로
+    const isChat = getContext()?.mainApi === 'openai';
+    const role = m => (m.role === 'assistant' ? 'assistant' : (isChat && m.role === 'user' ? 'user' : 'system'));
     const result = await generateRaw({
         systemPrompt: protect(system.content),
-        prompt: rest.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'system', content: protect(m.content) })),
+        prompt: rest.map(m => ({ role: role(m), content: protect(m.content) })),
         responseLength: maxTokens || null,
     });
     return { text: result || '', truncated: false };
