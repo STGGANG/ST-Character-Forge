@@ -321,7 +321,7 @@ function legacyFallback(target, messages) {
     if (target.profile) {
         throw new Error('이 실리태번 버전에서는 연결 프로필로 보낼 수 없습니다. 실리태번을 1.15 이상으로 업데이트하거나, API 연결을 "현재 연결 사용"으로 바꿔 주십시오.');
     }
-    return sendViaGenerateRaw(messages, target.maxTokens);
+    return sendViaGenerateRaw(messages, target.maxTokens, { legacy: true });
 }
 
 // Chat Completion — 실리태번 설정(모델·프록시·샘플러)은 사용하되 메시지는 가공하지 않음
@@ -431,26 +431,34 @@ async function sendTextCompletion(context, target, messages, signal) {
 
 // 기타 API 폴백 — 이 경로는 실리태번이 매크로를 치환하므로
 // {{user}}를 중립 표기로 바꿔 현재 페르소나 이름·설명이 섞이지 않게 함
-async function sendViaGenerateRaw(messages, maxTokens) {
-    const protect = text => String(text)
-        .replace(/\{\{user\}\}/gi, '[user]')
-        .replace(/\{\{persona\}\}/gi, '');
+// legacy: 구버전 실리태번에서 자동으로 넘어온 경우 — 보낼 때 {{user}}·{{char}}를 [user]·[char]로 바꿔 두고(실리태번이 이름으로 바꾸지 않게)
+//         결과에서 다시 {{user}}·{{char}}로 되돌림 (KoboldAI·NovelAI 등 원래 이 방식을 쓰는 연결은 예전 그대로)
+async function sendViaGenerateRaw(messages, maxTokens, { legacy = false } = {}) {
+    const protect = (text) => {
+        let out = String(text)
+            .replace(/\{\{user\}\}/gi, '[user]')
+            .replace(/\{\{persona\}\}/gi, '');
+        if (legacy) out = out.replace(/\{\{char\}\}/gi, '[char]');
+        return out;
+    };
+    const restore = text => (legacy ? text.replace(/\[user\]/gi, '{{user}}').replace(/\[char\]/gi, '{{char}}') : text);
     const [system, ...rest] = messages;
 
     log('Using generateRaw fallback');
+    let result;
     // 1.14 전: generateRaw(prompt, api, instructOverride, quietToLoud, systemPrompt, responseLength) — prompt는 글자만
     if (generateRaw.length >= 2) {
         const prompt = rest.map(m => protect(m.content)).join('\n\n');
-        const result = await generateRaw(prompt, null, false, false, protect(system.content), maxTokens || null);
-        return { text: result || '', truncated: false };
+        result = await generateRaw(prompt, null, false, false, protect(system.content), maxTokens || null);
+    } else {
+        // Chat Completion은 user 역할 그대로, Text Completion은 이름("페르소나:")이 붙지 않게 system으로
+        const isChat = getContext()?.mainApi === 'openai';
+        const role = m => (m.role === 'assistant' ? 'assistant' : (isChat && m.role === 'user' ? 'user' : 'system'));
+        result = await generateRaw({
+            systemPrompt: protect(system.content),
+            prompt: rest.map(m => ({ role: role(m), content: protect(m.content) })),
+            responseLength: maxTokens || null,
+        });
     }
-    // Chat Completion은 user 역할 그대로, Text Completion은 이름("페르소나:")이 붙지 않게 system으로
-    const isChat = getContext()?.mainApi === 'openai';
-    const role = m => (m.role === 'assistant' ? 'assistant' : (isChat && m.role === 'user' ? 'user' : 'system'));
-    const result = await generateRaw({
-        systemPrompt: protect(system.content),
-        prompt: rest.map(m => ({ role: role(m), content: protect(m.content) })),
-        responseLength: maxTokens || null,
-    });
-    return { text: result || '', truncated: false };
+    return { text: restore(result || ''), truncated: false };
 }
