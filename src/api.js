@@ -109,7 +109,11 @@ const GENERIC_REJECT = 'API 요청이 거절되었습니다. 자세한 이유는
 // 오류에서 보여 줄 문구 — Error가 아닌 객체(서버 응답 JSON 등)도 "[object Object]" 대신 내용으로
 function errorDetail(error) {
     if (typeof error === 'string') return error;
-    const message = error?.cause?.message || error?.message || error?.error?.message
+    if (error?.cause && error.cause !== error) {
+        const inner = errorDetail(error.cause);
+        if (inner && inner !== '알 수 없는 오류') return inner;
+    }
+    const message = error?.message || error?.error?.message
         || (typeof error?.error === 'string' ? error.error : '') || error?.detail;
     if (message) return String(message);
     if (error?.error === true) return GENERIC_REJECT;
@@ -314,14 +318,29 @@ async function streamChatCompletion(context, payload, signal) {
     return { text, truncated, model, gaps, reasoningChars: replyState.reasoning.length };
 }
 
-// 실리태번 1.15 전에는 presetToGeneratePayload가 넘긴 메시지·연결 정보를 버리고 샘플러 값만 돌려줌
-// → 현재 연결이면 예전 방식(generateRaw)으로 보냄 (실리태번 설정 그대로, 잘림 여부·모델 이름은 알 수 없음)
-//   연결 프로필은 예전 방식으로 쓸 수 없어 안내 (조용히 다른 연결로 보내지 않게)
-function legacyFallback(target, messages) {
-    if (target.profile) {
-        throw new Error('이 실리태번 버전에서는 연결 프로필로 보낼 수 없습니다. 실리태번을 1.15 이상으로 업데이트하거나, API 연결을 "현재 연결 사용"으로 바꿔 주십시오.');
+// 실리태번 1.15 전에는 presetToGeneratePayload가 넘긴 메시지·연결 정보를 버리고 샘플러 값만 돌려줌 → 예전 방식으로 보냄
+// - 현재 연결: 예전 방식(generateRaw) — 실리태번 설정 그대로 (잘림 여부는 알 수 없음)
+// - 연결 프로필: 실리태번의 연결 프로필 요청(ConnectionManagerRequestService, 1.12.14부터) — 메시지를 그대로 보냄
+//   (그보다 오래된 버전은 프로필로 보낼 방법이 없어 안내 — 조용히 다른 연결로 보내지 않게)
+// textPrompt: Text Completion용으로 이미 만든 프롬프트 글
+async function legacyFallback(context, target, messages, signal, textPrompt = null) {
+    if (!target.profile) return sendViaGenerateRaw(messages, target.maxTokens, { legacy: true });
+    const service = context.ConnectionManagerRequestService;
+    if (typeof service?.sendRequest !== 'function') {
+        throw new Error('이 실리태번 버전에서는 연결 프로필로 보낼 수 없습니다. 실리태번을 업데이트하거나, API 연결을 "현재 연결 사용"으로 바꿔 주십시오.');
     }
-    return sendViaGenerateRaw(messages, target.maxTokens, { legacy: true });
+    log(`Sending via ${target.label} (older SillyTavern)`);
+    const isChat = target.kind === 'cc';
+    const override = {};
+    if (target.profile['secret-id']) override.secret_id = target.profile['secret-id'];
+    const url = target.profile['api-url'];
+    if (isChat && url) {
+        for (const field of ['vertexai_region', 'zai_endpoint', 'siliconflow_endpoint', 'minimax_endpoint', 'pollinations_endpoint']) override[field] = url;
+    }
+    const raw = await service.sendRequest(target.profile.id, isChat ? structuredClone(messages) : textPrompt, target.maxTokens,
+        { stream: false, signal, extractData: false, includePreset: true, includeInstruct: false }, override);
+    const api = isChat ? 'openai' : 'textgenerationwebui';
+    return { text: await extractText(raw, api), truncated: detectTruncation(raw), model: responseModel(raw) };
 }
 
 // Chat Completion — 실리태번 설정(모델·프록시·샘플러)은 사용하되 메시지는 가공하지 않음
@@ -355,7 +374,7 @@ async function sendChatCompletion(context, target, messages, signal) {
 
     log(`Sending via ${target.label}${target.stream ? ' (streaming)' : ''}`);
     const payload = await service.presetToGeneratePayload(target.preset || {}, {}, base);
-    if (!Array.isArray(payload?.messages)) return legacyFallback(target, messages);
+    if (!Array.isArray(payload?.messages)) return legacyFallback(context, target, messages, signal);
 
     payload.stream = !!target.stream;
     for (const key of ['stop', 'assistant_prefill', 'assistant_impersonation', 'tools', 'tool_choice', 'json_schema', 'response_format']) {
@@ -415,7 +434,7 @@ async function sendTextCompletion(context, target, messages, signal) {
 
     log(`Sending via ${target.label}`);
     const payload = await service.presetToGeneratePayload(target.preset || {}, {}, base);
-    if (payload?.prompt == null) return legacyFallback(target, messages);
+    if (payload?.prompt == null) return legacyFallback(context, target, messages, signal, prompt);
     payload.stream = false;
     // 채팅용 정지 문자열("\n캐릭터이름:" 등)은 프로필의 대사 예시에서 출력을 끊으므로 인스트럭트 끝 표시만 사용
     payload.stopping_strings = instructStops;
