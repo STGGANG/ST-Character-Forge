@@ -10,12 +10,12 @@ import { PROMPT_SLOTS } from './prompt-defaults.js';
 import { state, log, logError, getSettings, cancelOperation, isCancelError, onBusyChange } from './state.js';
 import {
     updateSetting, saveSettings, getPrompt, isPromptCustomized, setCustomPrompt, resetPrompt,
-    resetSettingValues, resetAllSettings, exportSettingsSnapshot, importSettingsSnapshot, normalizeGuidelinesPlacement, getGuidelinesPlacement,
+    resetSettingValues, resetAllSettings, resetCustomizations, exportSettingsSnapshot, importSettingsSnapshot, normalizeGuidelinesPlacement, getGuidelinesPlacement,
     isScopedSlot, promptScopesOf, promptKeysOfScope, promptDisplayLabel, getPromptLabel, setPromptLabel,
 } from './storage.js';
 import {
     listHistory, addHistory, updateHistory, duplicateHistory, deleteHistory, deleteHistoryItems, clearHistory, importHistory, getHistoryBackend,
-    takeEvictedCount, loadSupportChat, saveSupportChat, exportHistoryItems,
+    takeEvictedCount, loadSupportChat, saveSupportChat, exportHistoryItems, clearAllSupportChats,
 } from './history-store.js';
 import { getConnectionProfiles, describeConnection, testConnection } from './api.js';
 import {
@@ -161,11 +161,21 @@ function isImeComposing(e) {
 // 항목은 글 한 줄, 또는 { text, sub } (sub: 그 아래 작게 덧붙이는 설명)
 const UPDATE_HISTORY = [
     {
+        version: '2.2.0',
+        notes: [
+            "분량에 '상세형'을 추가했습니다. 항목이 많아도 항목마다 필요한 만큼, 각 항목을 더 자세하게 풀어 씁니다.",
+            "페르소나 '원작 몰라도 OK': 원작 설정을 잘 몰라도 바로 플레이할 수 있는 페르소나를 만듭니다. (설정 탭)",
+            "프로필 항목 '목표 & 동기', '일상 & 루틴'과 세계관 항목 '생활상', '긴장 · 갈등', '용어집'을 추가했습니다.",
+            '내보내기·가져오기·초기화를 하나씩으로 합치고 원하는 것만 고를 수 있게 했습니다. 가져올 때는 기록을 골라서 추가합니다. (⋮ 메뉴)',
+            '생성·그리팅 프롬프트를 다듬었습니다. (자세한 것은 프롬프트 탭 확인)',
+        ],
+    },
+    {
         version: '2.1.0',
         notes: [
             '프롬프트 전반을 다듬고 요청 순서를 정리했습니다. (자세한 것은 프롬프트 탭 확인)',
             '사용자 추가 지침이 들어갈 위치를 고를 수 있습니다. (프롬프트 탭 → 추가 지침)',
-            '[공통] 프롬프트를 페르소나·봇·서포터 탭마다 따로 고칠 수 있고, 프롬프트 프리셋도 탭마다 따로 저장합니다.',
+            '문체 규칙·분량처럼 여러 탭에 있는 프롬프트도 탭마다 따로 고칠 수 있고, 프롬프트 프리셋도 탭마다 따로 저장합니다.',
             '프롬프트 칸의 표시 이름을 바꿀 수 있고, 남매 이름을 뺀 모든 칸을 비울 수 있습니다.',
             '모루 남매 대화: Enter는 줄바꿈, Ctrl+Enter로 보내기.',
             '모루 남매 대화는 기록 자동 저장 설정과 상관없이 항상 저장됩니다.',
@@ -250,8 +260,8 @@ function showUpdateNoticeOnce({ force = false } = {}) {
                     <span class="pf-update-version">v${EXTENSION_VERSION}</span>
                 </div>
                 <div class="pf-update-body">
-                    ${line('female', 'smile', '업데이트 끝났어요. 이번엔 프롬프트를 탭마다 따로 손볼 수 있어요. 추가 지침 자리도 직접 고를 수 있고요.')}
-                    ${line('male', 'smile', '그리고 저희랑 얘기할 때 이제 엔터가 줄바꿈이에요! 보내기는 Ctrl+Enter. 반쯤 쓴 말이 날아갈 일은 없어요.')}
+                    ${line('female', 'smile', '업데이트 끝났어요. 이번엔 분량에 상세형이 생겼어요. 항목이 많아도 대충 안 넘어가요.')}
+                    ${line('male', 'smile', '2차 원작을 잘 몰라도 페르소나를 짤 수 있는 스위치도 생겼어요! 설정 탭에 있어요.')}
                     <div class="pf-update-notes">${updateHistoryHtml()}</div>
                 </div>
                 <button type="button" class="pf-primary-btn pf-update-ok">확인</button>
@@ -345,6 +355,18 @@ export function bindUIEvents() {
         const enabled = $(this).prop('checked');
         updateSetting('spoilerProtection', enabled);
         $('#pf-spoiler-note').toggle(enabled);
+    });
+    // 접히는 섹션 (화면) — 제목을 누르거나 Enter·Space
+    $root.on('click keydown', '.pf-fold-toggle', function (e) {
+        if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        const folded = $(this).closest('.pf-foldable').toggleClass('pf-folded').hasClass('pf-folded');
+        $(this).attr('aria-expanded', String(!folded));
+    });
+    $root.on('change', '#pf-unfamiliar-toggle', function () {
+        const enabled = $(this).prop('checked');
+        updateSetting('unfamiliarSource', enabled);
+        $('#pf-unfamiliar-note').toggle(enabled);
     });
 
     // NSFW 지침 — 요청을 보낼 때 켜져 있는지만 봄 (결과·대화에 따로 기억하지 않음)
@@ -1042,6 +1064,8 @@ function updateSettingsUI() {
 
     $('#pf-spoiler-toggle').prop('checked', !!settings.spoilerProtection);
     $('#pf-spoiler-note').toggle(!!settings.spoilerProtection);
+    $('#pf-unfamiliar-toggle').prop('checked', !!settings.unfamiliarSource);
+    $('#pf-unfamiliar-note').toggle(!!settings.unfamiliarSource);
 
     $('#pf-mature-toggle').prop('checked', !!settings.matureContent);
     $('#pf-stream-toggle').prop('checked', !!settings.streamRequests);
@@ -4171,6 +4195,7 @@ function historyEntryFromCurrent(name) {
         conceptText: gen.conceptText || '',
         model: gen.model || undefined,
         greetingModels: greetingModelsOf(gen),
+        density: gen.density || undefined,
     };
 }
 
@@ -4319,7 +4344,7 @@ async function updateHistoryUI({ refresh = false } = {}) {
             ${lead}
             <div class="pf-history-info">
                 <div class="pf-history-name">${historyBadgesHtml(item)}<span>${escapeHtml(historyDisplayName(item))}</span></div>
-                <div class="pf-history-meta">${[historyMetaHtml(item), escapeHtml(langLabel), date].filter(Boolean).join(' · ')}</div>
+                <div class="pf-history-meta">${[historyMetaHtml(item), escapeHtml(langLabel), escapeHtml(historyDensityLabel(item)), date].filter(Boolean).join(' · ')}</div>
             </div>
             <div class="pf-history-actions">
                 <button class="pf-history-fav pf-btn pf-small-btn${item.favorite ? ' pf-on' : ''}" data-id="${id}" title="${item.favorite ? '즐겨찾기 해제' : '즐겨찾기'}"><i class="fa-${item.favorite ? 'solid' : 'regular'} fa-star"></i></button>
@@ -4334,6 +4359,12 @@ async function updateHistoryUI({ refresh = false } = {}) {
 // 캐릭터 없이 월드인포만 참고했을 때 — 참고한 북 이름 (예전 기록은 이름이 없음)
 function worldInfoNote(names) {
     return names?.length ? `월드인포: ${names.join(', ')}` : '월드인포만 참고';
+}
+
+// 만들 때 고른 분량 — 번역 결과와 예전 기록(정보 없음)은 표시 안 함
+function historyDensityLabel(item) {
+    if (!item.density || item.kind === 'translation') return '';
+    return DENSITY_LEVELS[item.density]?.label || '';
 }
 
 function historyMetaHtml(item) {
@@ -4483,6 +4514,7 @@ async function onHistoryLoad() {
         language: item.language,
         resultKind: item.kind || 'original',
         model: item.model || '',
+        density: item.density || '',
         timestamp: item.timestamp,
         isCustomSheet: isCustom,
     };
@@ -4563,49 +4595,6 @@ async function exportHistoryItemsOrWarn() {
         showToast('error', `내보내기를 멈췄습니다: ${error.message}. 대화가 빠진 백업이 되지 않도록 했습니다. 잠시 뒤 다시 시도하십시오.`);
         return null;
     }
-}
-
-async function onHistoryExport() {
-    const history = await exportHistoryItemsOrWarn(); // 모루 남매와의 대화도 합쳐서
-    if (!history) return;
-    if (!history.length) {
-        showToast('warning', '내보낼 기록이 없습니다.');
-        return;
-    }
-
-    const json = JSON.stringify(history, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `persona-forge-history-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('success', `${history.length}개 항목을 내보냈습니다.`);
-}
-
-function onHistoryImport() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        try {
-            const imported = JSON.parse(await file.text());
-            if (!Array.isArray(imported)) throw new Error('Invalid format');
-            const added = await importHistory(imported);
-            updateHistoryUI();
-            showToast('success', `${added}개의 새 항목을 가져왔습니다.`);
-        } catch (err) {
-            logError('historyImport', err);
-            showToast('error', '가져오기 실패: 유효하지 않은 파일이거나 저장에 실패했습니다.');
-        }
-    };
-    input.click();
 }
 
 function pickRandom(list) {
@@ -5317,7 +5306,7 @@ const RESETTABLE_LABELS = {
     generationMode: '생성 모드', templatePreset: '캐릭터 설정 템플릿', customFields: '캐릭터 설정 — Choice 항목 선택·순서',
     language: '출력 언어', connectionProfile: 'API 프로필', maxTokens: '최대 출력 토큰',
     includeWorldInfo: '월드인포 켜기', cardFields: '참고할 카드 항목', autoSaveHistory: '기록 자동 저장',
-    spoilerProtection: '스포일러 방지', matureContent: 'NSFW 지침', density: '분량', completionSound: '완료 알림음', includeSetting: '세계관 설정 켜기', includeCharacter: '캐릭터 설정 켜기', settingFields: '세계관 항목 선택·순서',
+    spoilerProtection: '스포일러 방지', unfamiliarSource: '원작 몰라도 OK', matureContent: 'NSFW 지침', density: '분량', completionSound: '완료 알림음', includeSetting: '세계관 설정 켜기', includeCharacter: '캐릭터 설정 켜기', settingFields: '세계관 항목 선택·순서',
     supporterProfile: '대화형 서포터 연결 프로필', supporterGender: '대화 상대 기본값', supporterUserName: '나를 부를 이름',
     supporterUserGender: '내 성별', supporterUserIntro: '자기소개', uiFontSize: '글자 크기', chatFontSize: '대화 글자 크기', uiFontFamily: '글꼴',
 };
@@ -5378,10 +5367,6 @@ async function askText(message, defaultValue = '') {
     return prompt(message, defaultValue);
 }
 
-function listHtml(items) {
-    return `<ul class="pf-dialog-list">${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
-}
-
 function downloadJson(data, fileName) {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -5394,20 +5379,139 @@ function downloadJson(data, fileName) {
     URL.revokeObjectURL(url);
 }
 
-async function exportFullBackup() {
+const BACKUP_TYPE = 'persona-forge-backup';
+
+// 칭호 — 기록과 같이 내보내고 가져옴
+function rankSnapshot() {
+    const settings = getSettings();
+    return { forgedCount: settings.forgedCount ?? null, hammerTaps: settings.hammerTaps || 0 };
+}
+
+function rankText(rank) {
+    const forged = rank.forgedCount == null ? '기록 수로 계산' : `${rank.forgedCount}명`;
+    return `벼려낸 인물 ${forged}, 망치질 ${(rank.hammerTaps || 0).toLocaleString()}회`;
+}
+
+// 대장간 창 안에 뜨는 작은 창 (내보내기·가져오기·초기화) — 설정 탭과 같은 모양
+// buttons: 왼쪽에 둘 추가 버튼 [{ text, icon, action }] (눌러도 창은 그대로), 확인하면 true
+function pfModal({ title, $body, okText, danger = false, buttons = [], onOpen }) {
+    return new Promise((resolve) => {
+        const $modal = $(`<div class="pf-modal" role="dialog" aria-modal="true">
+            <div class="pf-modal-card">
+                <h3 class="pf-modal-title"></h3>
+                <div class="pf-modal-body"></div>
+                <div class="pf-modal-foot">
+                    <span class="pf-modal-extra"></span>
+                    <button type="button" class="pf-btn pf-modal-cancel">취소</button>
+                    <button type="button" class="${danger ? 'pf-btn pf-danger-btn' : 'pf-primary-btn'} pf-modal-ok"></button>
+                </div>
+            </div>
+        </div>`);
+        $modal.find('.pf-modal-title').text(title);
+        $modal.find('.pf-modal-body').append($body);
+        $modal.find('.pf-modal-ok').text(okText);
+        for (const button of buttons) {
+            $('<button type="button" class="pf-btn"></button>')
+                .append(button.icon ? `<i class="fa-solid ${escapeHtml(button.icon)}"></i>` : '', document.createTextNode(button.text))
+                .on('click', () => button.action())
+                .appendTo($modal.find('.pf-modal-extra'));
+        }
+        // Esc는 이 창만 닫음 (대장간 창까지 닫히지 않게 먼저 받음)
+        const onKey = (e) => {
+            if (e.key !== 'Escape') return;
+            e.preventDefault();
+            e.stopPropagation();
+            close(false);
+        };
+        const close = (result) => {
+            document.removeEventListener('keydown', onKey, true);
+            $modal.remove();
+            resolve(result);
+        };
+        document.addEventListener('keydown', onKey, true);
+        let pressedBackdrop = false;
+        $modal.on('pointerdown', (e) => { pressedBackdrop = e.target === $modal[0]; });
+        $modal.on('click', '.pf-modal-cancel', () => close(false));
+        $modal.on('click', '.pf-modal-ok', () => close(true));
+        $modal.on('click', (e) => {
+            if (e.target === $modal[0] && pressedBackdrop) close(false);
+            e.stopPropagation(); // 대장간 창의 다른 클릭 처리로 넘기지 않음
+        });
+        $('#persona-forge-popup').append($modal);
+        onOpen?.($modal);
+        $modal.find('.pf-modal-ok').trigger('focus');
+    });
+}
+
+// 설정 탭과 같은 행 — 고르기(라디오) / 켜고 끄기(스위치)
+function choiceRowHtml({ name, value, icon, title, desc = '', checked = false }) {
+    return `<label class="pf-row pf-choice">
+        <input type="radio" name="${escapeHtml(name)}" value="${escapeHtml(value)}"${checked ? ' checked' : ''}>
+        <span class="pf-row-icon"><i class="fa-solid ${escapeHtml(icon)}"></i></span>
+        <span class="pf-row-text"><span class="pf-row-title">${escapeHtml(title)}</span>${desc ? `<span class="pf-row-desc">${escapeHtml(desc)}</span>` : ''}</span>
+        <span class="pf-choice-mark"></span>
+    </label>`;
+}
+
+function switchRowHtml({ name, value = '1', icon, title, desc = '', checked = false, disabled = false, sub = false }) {
+    return `<label class="pf-row${sub ? ' pf-row-sub' : ''}${disabled ? ' pf-row-off' : ''}">
+        <span class="pf-row-icon"><i class="fa-solid ${escapeHtml(icon)}"></i></span>
+        <span class="pf-row-text"><span class="pf-row-title">${escapeHtml(title)}</span>${desc ? `<span class="pf-row-desc">${escapeHtml(desc)}</span>` : ''}</span>
+        <span class="pf-row-ctrl"><input type="checkbox" class="pf-switch-input" name="${escapeHtml(name)}" value="${escapeHtml(value)}"${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}></span>
+    </label>`;
+}
+
+async function openExportDialog() {
+    const historyCount = (await listHistory({ refresh: true })).length;
+    const $body = $(`<div class="pf-modal-stack">
+        <p class="pf-modal-lead">내보낼 내용을 고르십시오.</p>
+        <div class="pf-group-body">
+            ${choiceRowHtml({ name: 'pf-export-kind', value: 'all', icon: 'fa-box-archive', title: '전체', desc: `설정값과 기록 ${historyCount}개 (남매 대화·그리팅·칭호 포함)`, checked: true })}
+            ${choiceRowHtml({ name: 'pf-export-kind', value: 'history', icon: 'fa-clock-rotate-left', title: '기록', desc: `기록 ${historyCount}개 (남매 대화·그리팅 포함)와 칭호` })}
+            ${choiceRowHtml({ name: 'pf-export-kind', value: 'settings', icon: 'fa-sliders', title: '설정값', desc: '설정 탭 선택값, 수정한 프롬프트·프리셋·추가 지침, 직접 만든 항목·양식 등 (기록·칭호 제외)' })}
+        </div>
+    </div>`);
+    if (!(await pfModal({ title: '내보내기', $body, okText: '내보내기' }))) return;
+    await exportBackup(String($body.find('input[name="pf-export-kind"]:checked').val() || 'all'));
+}
+
+// kind: all (전체) | history (기록·칭호) | settings (설정값) — 모두 같은 형식이라 예전 버전도 전체·설정값 파일은 읽을 수 있음
+async function exportBackup(kind = 'all') {
+    const date = new Date().toISOString().slice(0, 10);
+    const base = { type: BACKUP_TYPE, version: 1, contents: kind, exportedAt: new Date().toISOString() };
+    if (kind === 'settings') {
+        downloadJson({ ...base, settings: exportSettingsSnapshot({ withRank: false }) }, `persona-forge-settings-${date}.json`);
+        showToast('success', '설정값을 내보냈습니다.');
+        return;
+    }
     const history = await exportHistoryItemsOrWarn(); // 모루 남매와의 대화도 합쳐서
     if (!history) return;
-    downloadJson({
-        type: 'persona-forge-backup',
-        version: 1,
-        exportedAt: new Date().toISOString(),
-        settings: exportSettingsSnapshot(),
-        history,
-    }, `persona-forge-backup-${new Date().toISOString().slice(0, 10)}.json`);
+    if (kind === 'history') {
+        downloadJson({ ...base, history, rank: rankSnapshot() }, `persona-forge-history-${date}.json`);
+        showToast('success', `기록 ${history.length}개와 칭호를 내보냈습니다.`);
+        return;
+    }
+    downloadJson({ ...base, settings: exportSettingsSnapshot(), history }, `persona-forge-backup-${date}.json`);
     showToast('success', `전체 백업을 내보냈습니다 (기록 ${history.length}개 포함).`);
 }
 
-function importFullBackup() {
+// 백업 파일 읽기 — 새 형식(전체·기록·설정값), 예전 전체 백업, 예전 기록 내보내기(기록 배열)를 모두 받음
+function parseBackupFile(data) {
+    if (Array.isArray(data)) return { settings: null, history: data, rank: null, exportedAt: '' };
+    if (data?.type !== BACKUP_TYPE) return null;
+    const settings = data.settings && typeof data.settings === 'object' && !Array.isArray(data.settings) ? data.settings : null;
+    const history = Array.isArray(data.history) ? data.history : null;
+    let rank = data.rank && typeof data.rank === 'object' ? data.rank : null;
+    // 예전 전체 백업은 칭호가 설정 안에 있음
+    if (!rank && settings && (settings.forgedCount != null || settings.hammerTaps)) {
+        rank = { forgedCount: settings.forgedCount ?? null, hammerTaps: settings.hammerTaps || 0 };
+    }
+    if (rank && rank.forgedCount == null && !rank.hammerTaps) rank = null;
+    if (!settings && !history?.length && !rank) return null;
+    return { settings, history: history || [], rank, exportedAt: data.exportedAt || '' };
+}
+
+function openImportDialog() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
@@ -5415,29 +5519,198 @@ function importFullBackup() {
         const file = e.target.files?.[0];
         if (!file) return;
         try {
-            const data = JSON.parse(await file.text());
-            if (data?.type !== 'persona-forge-backup' || !data.settings) {
-                throw new Error('캐릭터 대장간 전체 백업 파일이 아닙니다. 기록만 가져오려면 기록 탭의 가져오기를 이용하십시오.');
-            }
-            const historyCount = Array.isArray(data.history) ? data.history.length : 0;
-            const ok = await confirmDialog('백업 가져오기',
-                `<p>${escapeHtml(file.name)}${data.exportedAt ? ` (${escapeHtml(new Date(data.exportedAt).toLocaleString('ko-KR'))})` : ''}</p>`
-                + listHtml([
-                    '설정 전체를 백업 내용으로 바꿉니다 (선택값, 수정한 프롬프트, 프리셋, 직접 만든 항목, 시트 양식 등)',
-                    `기록은 합칩니다 — 백업의 기록 ${historyCount}개 중 지금 없는 것만 추가`,
-                ]),
-                '가져오기');
-            if (!ok) return;
-            importSettingsSnapshot(data.settings);
-            const added = historyCount ? await importHistory(data.history) : 0;
-            afterBulkChange();
-            showToast('success', `백업을 가져왔습니다 (새 기록 ${added}개).`);
+            const parsed = parseBackupFile(JSON.parse(await file.text()));
+            if (!parsed) throw new Error('캐릭터 대장간에서 내보낸 파일이 아니거나 가져올 내용이 없습니다.');
+            await importBackup(parsed, file.name);
         } catch (error) {
             logError('importBackup', error);
-            showToast('error', `백업 가져오기 실패: ${error.message}`);
+            showToast('error', `가져오기 실패: ${error.message}`);
         }
     };
     input.click();
+}
+
+// 가져올 것 고르기 — 설정값은 통째로 바꾸고, 기록은 고른 것만 추가 (이미 있는 기록은 건너뜀), 칭호는 바꿀지 고름
+async function importBackup(parsed, fileName) {
+    const { settings, history, rank } = parsed;
+    const existing = new Set((await listHistory({ refresh: true })).map(item => item.id));
+    const current = rankSnapshot();
+    const rankHigher = rank && ((rank.forgedCount ?? 0) > (current.forgedCount ?? 0) || (rank.hammerTaps || 0) > (current.hammerTaps || 0));
+    const newCount = history.filter(item => !existing.has(item?.id)).length;
+
+    const recordRows = history.map((item, index) => {
+        const exists = existing.has(item?.id);
+        const meta = [
+            LANGUAGES[item?.language]?.label || item?.language || '',
+            item?.timestamp ? new Date(item.timestamp).toLocaleDateString('ko-KR') : '',
+            exists ? '이미 있음' : '',
+        ].filter(Boolean).join(' · ');
+        return switchRowHtml({
+            name: 'pf-import-record', value: String(index), icon: item?.mode === 'bot' ? 'fa-robot' : 'fa-user',
+            title: String(item?.name || '(이름 없음)'), desc: meta, checked: !exists, disabled: exists,
+        });
+    }).join('');
+
+    const $body = $(`<div class="pf-modal-stack">
+        <p class="pf-modal-lead">${escapeHtml(fileName)}${parsed.exportedAt ? ` · ${escapeHtml(new Date(parsed.exportedAt).toLocaleString('ko-KR'))}` : ''}</p>
+        ${settings ? `<div class="pf-modal-label">설정</div>
+        <div class="pf-group-body">
+            ${switchRowHtml({ name: 'pf-import-settings', icon: 'fa-sliders', title: '설정값', desc: '지금 설정을 파일 내용으로 바꿉니다 (설정 탭 선택값, 수정한 프롬프트·프리셋, 직접 만든 항목·양식 등)', checked: true })}
+        </div>` : ''}
+        ${rank || history.length ? `<div class="pf-modal-label">기록${history.length ? ` ${history.length}개 — 고른 것만 추가하고, 이미 있는 기록은 건너뜁니다` : ''}</div>
+        <div class="pf-group-body">
+            ${rank ? switchRowHtml({ name: 'pf-import-rank', icon: 'fa-award', title: '칭호', desc: `지금 ${rankText(current)} → 파일 ${rankText(rank)}`, checked: !!rankHigher }) : ''}
+            ${history.length ? switchRowHtml({ name: 'pf-import-record-all', icon: 'fa-check-double', title: '새 기록 모두 선택', desc: newCount ? `${newCount}개` : '새로 추가할 기록이 없습니다', checked: newCount > 0, disabled: !newCount }) : ''}
+        </div>
+        ${history.length ? `<div class="pf-group-body pf-modal-records">${recordRows}</div>` : ''}` : ''}
+    </div>`);
+    const $records = $body.find('input[name="pf-import-record"]:not(:disabled)');
+    const $all = $body.find('input[name="pf-import-record-all"]');
+    $all.on('change', () => $records.prop('checked', $all.prop('checked')));
+    $records.on('change', () => $all.prop('checked', $records.length > 0 && $records.filter(':checked').length === $records.length));
+
+    if (!(await pfModal({ title: '가져오기', $body, okText: '가져오기' }))) return;
+    const doSettings = !!settings && $body.find('input[name="pf-import-settings"]').prop('checked');
+    const doRank = !!rank && $body.find('input[name="pf-import-rank"]').prop('checked');
+    const picked = $records.filter(':checked').map((_, el) => history[Number(el.value)]).get();
+    if (!doSettings && !doRank && !picked.length) {
+        showToast('info', '고른 항목이 없어 가져오지 않았습니다.');
+        return;
+    }
+    if (doSettings) importSettingsSnapshot(settings, { keepRank: true });
+    const added = picked.length ? await importHistory(picked) : 0;
+    if (doRank) {
+        const target = getSettings();
+        target.forgedCount = rank.forgedCount ?? null;
+        target.hammerTaps = rank.hammerTaps || 0;
+        saveSettings();
+    }
+    afterBulkChange();
+    renderForgeRank();
+    const done = [doSettings && '설정값', picked.length && `새 기록 ${added}개`, doRank && '칭호'].filter(Boolean);
+    showToast('success', `가져왔습니다: ${done.join(', ')}`);
+}
+
+// 모든 기록의 모루 남매 대화 지우기 (지금 열린 결과의 대화도)
+async function clearSupportChatsEverywhere() {
+    pendingSupportSaves.clear(); // 곧 저장될 대화가 다시 써지지 않게
+    const gen = state.currentGeneration;
+    if (gen) {
+        gen.supportChat = [];
+        supportRenderedCount = 0;
+        supportPageGen = null;
+        ensureSupportOpener();
+        renderSupportLog();
+    }
+    await clearAllSupportChats();
+}
+
+async function openResetDialog() {
+    const historyCount = (await listHistory({ refresh: true })).length;
+    const rank = rankSnapshot();
+    const rankName = forgeRankOf(rank.forgedCount || 0).rank.name;
+    const valueLabels = ['language', 'density', 'templatePreset', 'connectionProfile'].map(key => RESETTABLE_LABELS[key]).filter(Boolean);
+    const chatsDesc = '기록은 두고 모루 남매 대화만';
+    const $body = $(`<div class="pf-modal-stack">
+        <p class="pf-modal-lead">초기화할 것을 고르십시오. 되돌릴 수 없습니다.</p>
+        <div class="pf-group-body">
+            ${switchRowHtml({ name: 'pf-reset-all', icon: 'fa-rotate-left', title: '모두 선택', desc: '설치 직후 상태로 되돌립니다' })}
+        </div>
+        <div class="pf-modal-label">설정</div>
+        <div class="pf-group-body">
+            ${switchRowHtml({ name: 'pf-reset', value: 'settings', icon: 'fa-sliders', title: '설정값', desc: `설정 탭 선택값 ${RESETTABLE_SETTING_KEYS.length}개 (${valueLabels.join(', ')} 등)` })}
+            ${switchRowHtml({ name: 'pf-reset', value: 'custom', icon: 'fa-pen-ruler', title: '프롬프트·직접 만든 항목', desc: '수정한 프롬프트·프리셋·추가 지침, 직접 만든 항목·자유 입력 양식, 직접 입력한 캐릭터, 캐릭터별 월드인포 선택 등' })}
+        </div>
+        <div class="pf-modal-label">기록</div>
+        <div class="pf-group-body">
+            ${switchRowHtml({ name: 'pf-reset', value: 'history', icon: 'fa-clock-rotate-left', title: '기록', desc: `저장된 기록 ${historyCount}개` })}
+            ${switchRowHtml({ name: 'pf-reset', value: 'chats', icon: 'fa-comments', title: '남매 대화', desc: chatsDesc, sub: true })}
+            ${switchRowHtml({ name: 'pf-reset', value: 'rank', icon: 'fa-award', title: '칭호', desc: `${rankName} · ${rankText(rank)}`, sub: true })}
+        </div>
+    </div>`);
+    const $items = $body.find('input[name="pf-reset"]');
+    const $all = $body.find('input[name="pf-reset-all"]');
+    const $history = $items.filter('[value="history"]');
+    const $chats = $items.filter('[value="chats"]');
+    const $rank = $items.filter('[value="rank"]');
+    let $ok = $();
+    const refresh = () => {
+        // 기록을 지우면 남매 대화는 함께 지워짐 (따로 남길 수 없음)
+        const historyOn = $history.prop('checked');
+        if (historyOn) $chats.prop('checked', true);
+        $chats.prop('disabled', historyOn).closest('.pf-row').toggleClass('pf-row-off', historyOn)
+            .find('.pf-row-desc').text(historyOn ? '기록과 함께 지워집니다' : chatsDesc);
+        const count = $items.filter(':checked').length;
+        $all.prop('checked', count === $items.length);
+        $ok.text(count === $items.length ? '전체 초기화' : count ? `${count}개 초기화` : '초기화');
+    };
+    $all.on('change', () => {
+        $items.prop('checked', $all.prop('checked'));
+        refresh();
+    });
+    // 기록을 켜면 남매 대화·칭호도 켜고, 끄면 둘 다 끔 (그다음 칭호는 따로 끄거나, 남매 대화·칭호만 따로 고를 수 있음)
+    $history.on('change', () => {
+        $chats.add($rank).prop('checked', $history.prop('checked'));
+        refresh();
+    });
+    $chats.add($rank).add($items.filter('[value="settings"], [value="custom"]')).on('change', refresh);
+
+    const ok = await pfModal({
+        title: '초기화', $body, okText: '초기화', danger: true,
+        buttons: [{ text: '백업 먼저 내보내기', icon: 'fa-file-export', action: () => exportBackup('all') }],
+        onOpen: ($modal) => {
+            $ok = $modal.find('.pf-modal-ok');
+            refresh();
+        },
+    });
+    if (!ok) return;
+    const picked = new Set($items.filter(':checked').map((_, el) => el.value).get());
+    if (!picked.size) {
+        showToast('info', '고른 항목이 없어 초기화하지 않았습니다.');
+        return;
+    }
+    if ((picked.has('history') || picked.has('chats')) && supportController) {
+        showToast('info', '모루 남매의 답을 기다리는 중에는 기록·남매 대화를 초기화할 수 없습니다.');
+        return;
+    }
+    try {
+        if (picked.size === $items.length) {
+            pendingSupportSaves.clear();
+            await clearHistory();
+            resetAllSettings();
+            state.currentGeneration = null;
+            state.selectedCharKey = '';
+            afterBulkChange();
+            renderForgeRank();
+            showGenerateLoading(false);
+            showToast('success', '전체 초기화했습니다.');
+            return;
+        }
+        if (picked.has('history')) {
+            pendingSupportSaves.clear();
+            await clearHistory();
+            if (state.currentGeneration) state.currentGeneration.historyId = null; // 지운 기록에 대화를 다시 쓰지 않게
+        } else if (picked.has('chats')) {
+            await clearSupportChatsEverywhere();
+        }
+        if (picked.has('rank')) {
+            const settings = getSettings();
+            // 벼려낸 인물 수는 0 (비워 두면 기록 수로 다시 세므로), 망치질 횟수(숨은 칭호)도 0
+            settings.forgedCount = 0;
+            settings.hammerTaps = 0;
+            saveSettings();
+        }
+        if (picked.has('settings')) resetSettingValues();
+        if (picked.has('custom')) resetCustomizations();
+    } catch (error) {
+        logError('reset', error);
+        showToast('error', `초기화하지 못했습니다: ${error.message}`);
+        return;
+    }
+    afterBulkChange();
+    renderForgeRank();
+    const labels = { settings: '설정값', custom: '프롬프트·직접 만든 항목', history: '기록', chats: '남매 대화', rank: '칭호' };
+    showToast('success', `초기화했습니다: ${[...picked].map(key => labels[key]).join(', ')}`);
 }
 
 function afterBulkChange() {
@@ -5463,84 +5736,16 @@ async function onMoreMenuAction() {
         showUpdateNoticeOnce({ force: true });
         return;
     }
-    if (action === 'export-backup') {
-        await exportFullBackup();
+    if (action === 'export') {
+        await openExportDialog();
         return;
     }
-    if (action === 'import-backup') {
-        importFullBackup();
+    if (action === 'import') {
+        openImportDialog();
         return;
     }
-    if (action === 'export-history') {
-        await onHistoryExport();
-        return;
-    }
-    if (action === 'import-history') {
-        onHistoryImport();
-        return;
-    }
-    if (action === 'reset-settings') {
-        const ok = await confirmDialog('설정값 초기화',
-            '<p>아래 선택값만 처음 상태로 돌아갑니다.</p>'
-            + listHtml(RESETTABLE_SETTING_KEYS.map(key => RESETTABLE_LABELS[key] || key))
-            + '<p>유지: 기록, 수정한 프롬프트·프리셋·추가 지침, 직접 만든 항목, 자유 입력 양식, 직접 입력한 캐릭터, 캐릭터별 월드인포 선택</p>',
-            '초기화');
-        if (!ok) return;
-        resetSettingValues();
-        afterBulkChange();
-        showToast('success', '설정값을 초기화했습니다.');
-        return;
-    }
-    if (action === 'reset-rank') {
-        // 칭호만 처음으로 — 벼려낸 인물 수는 0 (비워 두면 기록 수로 다시 세므로), 망치질 횟수(숨은 칭호)도 0
-        const settings = getSettings();
-        const forged = settings.forgedCount || 0;
-        const taps = settings.hammerTaps || 0;
-        const ok = await confirmDialog('칭호 초기화',
-            `<p>칭호를 처음(${escapeHtml(FORGE_RANKS[0].name)})으로 되돌립니다.</p>`
-            + listHtml([`벼려낸 인물 수 ${forged}명 → 0명`, `망치질 ${taps.toLocaleString()}회 → 0회 (숨은 칭호 포함)`])
-            + '<p>유지: 기록, 모든 설정과 프롬프트</p>',
-            '초기화');
-        if (!ok) return;
-        settings.forgedCount = 0;
-        settings.hammerTaps = 0;
-        saveSettings();
-        renderForgeRank();
-        showToast('success', '칭호를 초기화했습니다.');
-        return;
-    }
-    if (action === 'reset-history') {
-        const count = (await listHistory({ refresh: true })).length;
-        const ok = await confirmDialog('기록 초기화',
-            `<p>저장된 기록 ${count}개를 모두 삭제합니다. 되돌릴 수 없습니다.</p><p>유지: 모든 설정과 프롬프트</p>`,
-            '삭제');
-        if (!ok) return;
-        await clearHistory();
-        updateHistoryUI();
-        showToast('success', '기록을 초기화했습니다.');
-        return;
-    }
-    if (action === 'reset-all') {
-        const count = (await listHistory({ refresh: true })).length;
-        const ok = await confirmDialog('전체 초기화',
-            '<p>설치 직후 상태로 되돌립니다. 되돌릴 수 없으니 먼저 백업을 내보내 두십시오.</p>'
-            + listHtml([
-                '모든 설정값',
-                '수정한 프롬프트, 프롬프트 프리셋, 추가 지침, 이전 버전 보관함',
-                '직접 만든 항목과 항목 수정, 자유 입력 양식, 직접 입력한 캐릭터',
-                '캐릭터별 월드인포 선택',
-                `기록 ${count}개`,
-            ]),
-            '전체 초기화',
-            [{ text: '백업 먼저 내보내기', icon: 'fa-file-export', action: () => exportFullBackup() }]);
-        if (!ok) return;
-        await clearHistory();
-        resetAllSettings();
-        state.currentGeneration = null;
-        state.selectedCharKey = '';
-        afterBulkChange();
-        showGenerateLoading(false);
-        showToast('success', '전체 초기화했습니다.');
+    if (action === 'reset') {
+        await openResetDialog();
     }
 }
 

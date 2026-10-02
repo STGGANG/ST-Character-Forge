@@ -205,7 +205,7 @@ function mutate(change) {
 }
 
 // supportChat(모루 남매와의 대화)은 따로 — 파일로 저장하고 기록에는 supportChatFile 표시만
-const OPTIONAL_FIELDS = ['kind', 'mode', 'refName', 'direction', 'personaId', 'greeting', 'greetings', 'worldOnly', 'supportGender', 'conceptText', 'noTarget', 'favorite', 'wiNames', 'customName', 'model', 'greetingModels'];
+const OPTIONAL_FIELDS = ['kind', 'mode', 'refName', 'direction', 'personaId', 'greeting', 'greetings', 'worldOnly', 'supportGender', 'conceptText', 'noTarget', 'favorite', 'wiNames', 'customName', 'model', 'greetingModels', 'density'];
 
 // 새 기록에 대화 붙이기 — 파일로 먼저 저장하고 표시만 남김 (파일 저장이 안 되면 예전처럼 기록 안에)
 async function attachChat(entry, chat) {
@@ -406,6 +406,26 @@ export async function deleteHistoryItems(ids) {
 
 export async function clearHistory() {
     await mutate(() => []);
+}
+
+// 모든 기록의 모루 남매 대화만 지움 (기록·결과물은 그대로) — 지운 대화 수를 돌려줌
+export async function clearAllSupportChats() {
+    await init();
+    await migrateChats();
+    const fresh = backend === 'file' ? normalizeList(await readFile() || []) : (cache || []);
+    const targets = fresh.filter(item => item.supportChatFile || (Array.isArray(item.supportChat) && item.supportChat.length));
+    if (backend === 'file') {
+        await Promise.all(targets.filter(item => item.supportChatFile).map(item => deleteChatFile(item.id)));
+    }
+    await mutate(list => list.map(item => {
+        if (!item.supportChatFile && !Array.isArray(item.supportChat) && !item.supportGender) return item;
+        const next = { ...item };
+        delete next.supportChat;
+        delete next.supportChatFile;
+        delete next.supportGender;
+        return next;
+    }));
+    return targets.length;
 }
 
 export async function importHistory(items) {

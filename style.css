@@ -627,6 +627,31 @@
     margin-top: 4px !important;
 }
 
+/* 접히는 섹션 (화면) — 제목을 누르면 펼침 */
+.persona-forge-popup .pf-fold-toggle {
+    cursor: pointer;
+    user-select: none;
+}
+
+.persona-forge-popup .pf-fold-icon {
+    font-size: .9em;
+    transition: transform .2s;
+}
+
+.persona-forge-popup .pf-folded .pf-fold-icon {
+    transform: rotate(-90deg);
+}
+
+.persona-forge-popup .pf-folded > .pf-group-body {
+    display: none;
+}
+
+/* 모드 전용 스위치 — 스위치 기본 스타일(display: inline-block !important)보다 우선해서 숨김 */
+#persona-forge-popup.persona-forge-popup:not(.pf-mode-bot) input.pf-switch-input[data-pf-mode="bot"],
+#persona-forge-popup.persona-forge-popup.pf-mode-bot input.pf-switch-input[data-pf-mode="persona"] {
+    display: none !important;
+}
+
 /* 연결 테스트 — 제목 줄 오른쪽 */
 .persona-forge-popup .pf-btn.pf-conn-test {
     flex: none;
@@ -3960,9 +3985,114 @@
     margin: 6px 0;
 }
 
-.pf-dialog-list {
-    margin: 6px 0;
-    padding-left: 20px;
+/* ===== 대장간 창 안의 작은 창 (내보내기·가져오기·초기화) — 설정 탭과 같은 행 모양 ===== */
+.persona-forge-popup .pf-modal {
+    /* inset: 0 대신 크기를 직접 — 모바일 실리태번은 html에 transform이 있어 fixed 기준이 0×0이 됨 (대장간 창과 같은 방식) */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 5;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, .35);
+    animation: pf-fade .15s ease-out;
+}
+
+.pf-modal-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: min(520px, 100%);
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+    padding: 20px 20px 16px;
+    background: var(--pf-surface);
+    border: 1px solid var(--pf-line);
+    border-radius: var(--pf-r-window);
+    box-shadow: var(--pf-shadow);
+    font-family: var(--pf-font);
+    font-size: calc(var(--mainFontSize, 15px) * var(--pf-ui-scale, 1));
+    text-align: left;
+    animation: pf-rise .2s cubic-bezier(.2, .8, .3, 1);
+}
+
+.persona-forge-popup .pf-modal-title {
+    flex: none;
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--pf-fg);
+}
+
+.pf-modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.pf-modal-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.persona-forge-popup .pf-modal-lead {
+    margin: 0;
+    font-size: .85em;
+    color: var(--pf-muted);
+    overflow-wrap: anywhere;
+}
+
+.pf-modal-label {
+    margin: 4px 4px 0;
+    font-size: .78em;
+    font-weight: 700;
+    color: var(--pf-muted);
+}
+
+.pf-modal-records {
+    max-height: 34vh;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+.persona-forge-popup .pf-modal .pf-row {
+    min-height: 50px;
+}
+
+.persona-forge-popup .pf-row.pf-row-sub {
+    padding-left: 30px;
+}
+
+.persona-forge-popup label.pf-row.pf-row-off {
+    opacity: .5;
+    cursor: default;
+}
+
+.pf-modal-foot {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.pf-modal-extra {
+    display: flex;
+    gap: 8px;
+    margin-right: auto;
+}
+
+.pf-modal-extra:empty {
+    display: none;
 }
 
 @media (max-width: 600px) {

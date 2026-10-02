@@ -23,23 +23,12 @@
                             <div>기록 저장 위치</div>
                             <div id="pf-more-storage" class="pf-more-sub"></div>
                         </div>
-                        <button class="pf-more-item" data-action="export-backup" role="menuitem"><i
-                                class="fa-solid fa-file-export"></i> 전체 백업 내보내기</button>
-                        <button class="pf-more-item" data-action="import-backup" role="menuitem"><i
-                                class="fa-solid fa-file-import"></i> 전체 백업 가져오기</button>
-                        <button class="pf-more-item" data-action="export-history" role="menuitem"><i
-                                class="fa-solid fa-clock-rotate-left"></i> 기록 내보내기</button>
-                        <button class="pf-more-item" data-action="import-history" role="menuitem"><i
-                                class="fa-solid fa-file-arrow-up"></i> 기록 가져오기</button>
-                        <div class="pf-more-sep"></div>
-                        <button class="pf-more-item" data-action="reset-settings" role="menuitem"><i
-                                class="fa-solid fa-sliders"></i> 설정값 초기화</button>
-                        <button class="pf-more-item" data-action="reset-rank" role="menuitem"><i
-                                class="fa-solid fa-award"></i> 칭호 초기화</button>
-                        <button class="pf-more-item" data-action="reset-history" role="menuitem"><i
-                                class="fa-solid fa-clock-rotate-left"></i> 기록 초기화</button>
-                        <button class="pf-more-item pf-more-danger" data-action="reset-all" role="menuitem"><i
-                                class="fa-solid fa-rotate-left"></i> 전체 초기화</button>
+                        <button class="pf-more-item" data-action="export" role="menuitem"><i
+                                class="fa-solid fa-file-export"></i> 내보내기</button>
+                        <button class="pf-more-item" data-action="import" role="menuitem"><i
+                                class="fa-solid fa-file-import"></i> 가져오기</button>
+                        <button class="pf-more-item pf-more-danger" data-action="reset" role="menuitem"><i
+                                class="fa-solid fa-rotate-left"></i> 초기화</button>
                         <div class="pf-more-sep"></div>
                         <button class="pf-more-item" data-action="update-notes" role="menuitem"><i
                                 class="fa-solid fa-bullhorn"></i> 업데이트 내역</button>
@@ -323,8 +312,8 @@
                                     분량
                                     <details class="pf-info">
                                         <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
-                                        <div class="pf-info-bubble">밸런스형: 중복을 줄이고 중요한 정보 위주로 씁니다. / 압축형: 대부분 짧은 나열로 쓰고,
-                                            성격·동기 같은 핵심만 필요한 만큼 풀어 씁니다.</div>
+                                        <div class="pf-info-bubble">상세형: 항목이 많아도 항목마다 필요한 만큼 자세하게, 형용사 나열보다 완전한 문장으로 씁니다. / 밸런스형:
+                                            중복을 줄이고 중요한 정보 위주로 씁니다. / 압축형: 대부분 짧은 나열로 쓰고, 성격·동기 같은 핵심만 필요한 만큼 풀어 씁니다.</div>
                                     </details>
                                 </span>
                                 <span id="pf-density-desc" class="pf-row-desc"></span>
@@ -344,12 +333,21 @@
                             <span class="pf-row-ctrl"><input type="checkbox" id="pf-spoiler-toggle"
                                     class="pf-switch-input"></span>
                         </label>
+                        <label class="pf-row" data-pf-mode="persona">
+                            <span class="pf-row-icon"><i class="fa-solid fa-map"></i></span>
+                            <span class="pf-row-text">
+                                <span class="pf-row-title">원작 몰라도 OK</span>
+                                <span id="pf-unfamiliar-note" class="pf-row-desc" style="display: none;">2차 원작 설정을 몰라도 바로 플레이할 수 있는 페르소나를 목표로 합니다. 작품을 잘 아는 모델을 고르거나 참고 자료를 넣는 것을 권장하며, 여전히 헷갈리는 설정은 만들어진 페르소나를 두고 모루 남매와 대화하며 알아가도 좋습니다.</span>
+                            </span>
+                            <span class="pf-row-ctrl"><input type="checkbox" id="pf-unfamiliar-toggle"
+                                    class="pf-switch-input"></span>
+                        </label>
                         <label class="pf-row">
                             <span class="pf-row-icon"><i class="fa-solid fa-fire"></i></span>
                             <span class="pf-row-text">
                                 <span class="pf-row-title">NSFW 지침</span>
-                                <span class="pf-row-desc">켜 둔 동안 보내는 생성·수정·그리팅·번역·모루 남매 대화에 노골적인 표현을 더 적극적으로
-                                    허용하는 지침을 넣습니다. 끄면 다음 요청부터 빠집니다.</span>
+                                <span class="pf-row-desc">보내는 모든 요청에 노골적인 표현을 더 적극적으로 허용하는 지침을 넣습니다. 켜져 있을 때만 활성화되며,
+                                    끄면 다음 요청부터 빠집니다.</span>
                             </span>
                             <span class="pf-row-ctrl"><input type="checkbox" id="pf-mature-toggle"
                                     class="pf-switch-input"></span>
@@ -456,8 +454,8 @@
                     </div>
                 </section>
 
-                <section class="pf-group">
-                    <h5 class="pf-group-title">저장</h5>
+                <section class="pf-group pf-foldable pf-folded">
+                    <h5 class="pf-group-title pf-fold-toggle" role="button" tabindex="0" aria-expanded="false">저장 &amp; 화면 <i class="fa-solid fa-chevron-down pf-fold-icon"></i></h5>
                     <div class="pf-group-body">
                         <label class="pf-row">
                             <span class="pf-row-icon"><i class="fa-solid fa-floppy-disk"></i></span>
@@ -477,12 +475,6 @@
                             <span class="pf-row-ctrl"><input type="checkbox" id="pf-sound-toggle"
                                     class="pf-switch-input"></span>
                         </label>
-                    </div>
-                </section>
-
-                <section class="pf-group">
-                    <h5 class="pf-group-title">화면</h5>
-                    <div class="pf-group-body">
                         <div class="pf-row">
                             <span class="pf-row-icon"><i class="fa-solid fa-text-height"></i></span>
                             <span class="pf-row-text">

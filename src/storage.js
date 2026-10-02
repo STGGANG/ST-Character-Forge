@@ -170,6 +170,21 @@ export function resetSettingValues() {
     saveSettings();
 }
 
+// 칭호 (벼려낸 인물 수·망치질 횟수) — 내보내기·가져오기·초기화에서 기록과 같이 다룸
+const RANK_KEYS = ['forgedCount', 'hammerTaps'];
+// 어느 묶음에도 속하지 않는 값 (업데이트 안내를 본 버전, 구버전 기록)
+const META_KEYS = ['lastSeenVersion', 'history'];
+
+// 프롬프트·직접 만든 항목 초기화 — 설정 탭 선택값·칭호·기록은 그대로
+export function resetCustomizations() {
+    const keep = new Set([...RESETTABLE_SETTING_KEYS, ...RANK_KEYS, ...META_KEYS]);
+    for (const key of Object.keys(defaultSettings)) {
+        if (!keep.has(key)) state.settings[key] = structuredClone(defaultSettings[key]);
+    }
+    fillDefaults(state.settings);
+    saveSettings();
+}
+
 export function resetAllSettings() {
     for (const key of Object.keys(state.settings)) delete state.settings[key];
     Object.assign(state.settings, structuredClone(defaultSettings));
@@ -177,16 +192,20 @@ export function resetAllSettings() {
     saveSettings();
 }
 
-export function exportSettingsSnapshot() {
+// withRank: false면 칭호를 뺌 ("설정값" 내보내기)
+export function exportSettingsSnapshot({ withRank = true } = {}) {
     const copy = structuredClone(state.settings);
     delete copy.history;
+    if (!withRank) for (const key of RANK_KEYS) delete copy[key];
     return copy;
 }
 
-export function importSettingsSnapshot(snapshot) {
+// keepRank: 지금 칭호를 그대로 둠 (칭호는 따로 고르게 하므로)
+export function importSettingsSnapshot(snapshot, { keepRank = false } = {}) {
     if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
         throw new Error('백업 파일에 설정이 없습니다.');
     }
+    const keptRank = Object.fromEntries(RANK_KEYS.map(key => [key, state.settings[key]]));
     const keepHistory = state.settings.history;
     for (const key of Object.keys(state.settings)) delete state.settings[key];
     for (const key of Object.keys(defaultSettings)) {
@@ -194,6 +213,7 @@ export function importSettingsSnapshot(snapshot) {
     }
     state.settings.history = keepHistory || [];
     if (snapshot.density === undefined && snapshot.concise === true) state.settings.density = 'concise';
+    if (keepRank) Object.assign(state.settings, keptRank);
     fillDefaults(state.settings);
     migrateSettings(state.settings);
     saveSettings();

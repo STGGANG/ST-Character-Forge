@@ -1,7 +1,7 @@
 export const extensionName = "persona-forge";
 
 // manifest.json의 version과 같게 — 바뀌면 설치·업데이트 후 한 번 안내 창을 띄움
-export const EXTENSION_VERSION = '2.1.0';
+export const EXTENSION_VERSION = '2.2.0';
 
 // 글자 크기 — 대장간 창 전체(ui)와 모루 남매 대화(chat) 배율
 export const FONT_SCALES = {
@@ -56,6 +56,7 @@ export const GREETING_POVS = {
 
 export const DENSITY_LEVELS = {
     default: { label: '기본형', desc: '분량을 따로 조절하지 않습니다', slot: '' },
+    detailed: { label: '상세형', desc: '항목마다 필요한 만큼 자세하게, 형용사 나열보다 완전한 문장으로', slot: 'densityDetailed' },
     concise: { label: '밸런스형', desc: '중요한 정보는 충분히 풀고, 사소한 것은 짧게 줄임', slot: 'density' },
     compact: { label: '압축형', desc: '전체를 짧게 압축하고, 핵심만 간결하게 남김', slot: 'densityCompact' },
 };
@@ -77,10 +78,13 @@ export const GENERATION_MODES = {
 export const SETTING_FIELDS = {
     world: { label: '세계 개요', labelEn: 'WORLD', description: 'genre, era, technology level, and how the world broadly works', descriptionKo: '장르, 시대, 기술 수준, 세계가 대략 어떻게 돌아가는지', icon: 'fa-solid fa-earth-asia' },
     environment: { label: '환경', labelEn: 'ENVIRONMENT', description: 'climate, landscape, and the feel of everyday surroundings', descriptionKo: '기후, 풍경, 일상 주변의 분위기', icon: 'fa-solid fa-mountain-sun' },
+    everyday_life: { label: '생활상', labelEn: 'DAILY LIFE', description: 'what people eat, wear, and do for a living, money and prices, everyday customs and taboos', descriptionKo: '먹고 입고 먹고사는 방식, 돈과 물가, 일상의 관습과 금기', icon: 'fa-solid fa-bread-slice' },
     places: { label: '주요 장소', labelEn: 'PLACES', description: 'key regions, cities, and places the story is likely to visit', descriptionKo: '이야기에 나올 만한 주요 지역·도시·장소', icon: 'fa-solid fa-map-location-dot' },
     factions: { label: '주요 세력', labelEn: 'FACTIONS', description: 'major groups, organizations, and powers, and how they relate to each other; where it helps, their key branches or divisions', descriptionKo: '주요 집단·단체·세력과 서로의 관계 (필요하면 주요 부서·하위 조직도)', icon: 'fa-solid fa-flag' },
+    tensions: { label: '긴장 · 갈등', labelEn: 'TENSIONS', description: 'conflicts, pressures, and brewing problems right now that can drive scenes and draw {{user}} in', descriptionKo: '지금 진행 중인 갈등·압박·터질 듯한 문제, 장면을 움직이고 {{user}}를 끌어들일 거리', icon: 'fa-solid fa-scale-unbalanced' },
     history: { label: '역사', labelEn: 'HISTORY', description: 'important past events that still shape the present', descriptionKo: '지금까지 영향을 주는 중요한 과거 사건', icon: 'fa-solid fa-landmark' },
     lore: { label: '신화·전설', labelEn: 'LORE', description: 'myths, legends, beliefs, and religions', descriptionKo: '신화, 전설, 믿음과 종교', icon: 'fa-solid fa-book-skull' },
+    glossary: { label: '용어집', labelEn: 'GLOSSARY', description: "the world's own terms, titles, and names, each with a short explanation", descriptionKo: '세계 고유의 용어·호칭·이름과 짧은 설명', icon: 'fa-solid fa-book-bookmark' },
     notes: { label: '기타 배경', labelEn: 'BACKGROUND NOTES', description: 'other background worth knowing for the roleplay', descriptionKo: '그 밖에 롤플레이에 알아 둘 배경', icon: 'fa-solid fa-note-sticky' },
 };
 // 처음에는 아무것도 고르지 않음 (쓰는 사람이 필요한 항목만 골라 켬)
@@ -119,6 +123,22 @@ export const PROFILE_FIELDS = {
         descriptionKo: '핵심 컨셉, 성격 특성, 좋아하는 것, 싫어하는 것, 욕구, 두려움, 약점',
         icon: 'fa-solid fa-gem',
     },
+    goals: {
+        id: 'goals',
+        label: '목표 & 동기',
+        labelEn: 'GOALS & MOTIVATIONS',
+        description: 'what they consciously want and pursue now, why, and what stands in the way',
+        descriptionKo: '지금 의식적으로 원하고 좇는 것, 그 이유, 가로막는 것',
+        icon: 'fa-solid fa-bullseye',
+    },
+    daily_life: {
+        id: 'daily_life',
+        label: '일상 & 루틴',
+        labelEn: 'DAILY LIFE & ROUTINE',
+        description: 'a typical day: work or duties, routines, places they frequent, and how they live (who they live with, how they spend money and free time)',
+        descriptionKo: '평소 하루: 일이나 맡은 일, 일과, 자주 가는 곳, 사는 모습 (누구와 사는지, 돈과 여가를 어떻게 쓰는지)',
+        icon: 'fa-solid fa-mug-saucer',
+    },
     quirks: {
         id: 'quirks',
         label: '버릇 & 습관',
@@ -152,7 +172,6 @@ export const PROFILE_FIELDS = {
         description: 'inner conflicts, secret desires, what they feel guilty about and how they live with it',
         descriptionKo: '내적 갈등, 숨긴 욕망, 죄책감의 대상과 그것을 안고 사는 방식',
         icon: 'fa-solid fa-moon',
-        nsfw: true,
     },
     speech: {
         id: 'speech',
@@ -166,8 +185,8 @@ export const PROFILE_FIELDS = {
         id: 'nsfw_appearance',
         label: 'NSFW 외모',
         labelEn: 'NSFW APPEARANCE',
-        description: 'intimate physical details (shape, grooming, and how their body responds, such as fluids)',
-        descriptionKo: '은밀한 신체적 세부 사항 (형태, 관리 상태, 체질에 따른 반응·체액 등)',
+        description: "intimate physical details (shape, grooming, and how their body responds, such as fluids); exact size isn't required, but if a man's size is described, treat 20 cm or more as large",
+        descriptionKo: '은밀한 신체적 세부 사항 (형태, 관리 상태, 체질에 따른 반응·체액 등). 정확한 크기는 꼭 쓰지 않아도 되지만, 남성의 크기를 묘사할 때는 20cm 이상을 \'크다\'로 봄',
         icon: 'fa-solid fa-eye-slash',
         nsfw: true,
     },
@@ -211,19 +230,19 @@ export const TEMPLATE_PRESETS = {
         id: 'standard',
         label: 'Standard (표준)',
         description: '일반적인 수준의 상세한 프로필',
-        fields: ['basics', 'appearance', 'background', 'personality', 'relationships', 'speech'],
+        fields: ['basics', 'appearance', 'background', 'personality', 'goals', 'relationships', 'speech'],
     },
     detailed: {
         id: 'detailed',
         label: 'Detailed (상세)',
         description: '심층적인 캐릭터 프로필',
-        fields: ['basics', 'appearance', 'background', 'personality', 'quirks', 'skills', 'relationships', 'speech', 'character_notes'],
+        fields: ['basics', 'appearance', 'background', 'personality', 'goals', 'daily_life', 'quirks', 'skills', 'relationships', 'speech', 'character_notes'],
     },
     full: {
         id: 'full',
         label: 'Full (전체)',
-        description: 'NSFW 포함 완전한 프로필',
-        fields: ['basics', 'appearance', 'background', 'personality', 'quirks', 'skills', 'relationships', 'hidden_desires', 'speech', 'nsfw_appearance', 'sexual_preferences', 'ai_guidelines', 'character_notes'],
+        description: '모든 항목을 포함한 완전한 프로필',
+        fields: ['basics', 'appearance', 'background', 'personality', 'goals', 'daily_life', 'quirks', 'skills', 'relationships', 'hidden_desires', 'speech', 'nsfw_appearance', 'sexual_preferences', 'ai_guidelines', 'character_notes'],
     },
 };
 
@@ -312,6 +331,8 @@ export const defaultSettings = {
 
     // 스포일러 방지 (참고 캐릭터의 비밀을 프로필에 드러내지 않도록 지시) — 창작 자유도가 낮아질 수 있어 기본 끔
     spoilerProtection: false,
+    // 원작 몰라도 OK (페르소나) — 원작 설정을 몰라도 바로 플레이할 수 있는 페르소나를 짜도록 지시
+    unfamiliarSource: false,
 
     manualCharacter: { name: '', description: '' },
 
@@ -367,7 +388,7 @@ export const MANUAL_PERSONA_ID = '__manual__';
 export const RESETTABLE_SETTING_KEYS = [
     'forgeMode', 'botDirection', 'botPersona', 'personaBase', 'greetingLength', 'greetingLengthCustom', 'greetingPov', 'density',
     'generationMode', 'templatePreset', 'customFields', 'language', 'connectionProfile', 'maxTokens',
-    'includeWorldInfo', 'includeSetting', 'includeCharacter', 'settingFields', 'supporterProfile', 'supporterGender', 'supporterUserName', 'supporterUserGender', 'supporterUserIntro', 'uiFontSize', 'chatFontSize', 'uiFontFamily', 'cardFields', 'autoSaveHistory', 'completionSound', 'spoilerProtection', 'matureContent', 'streamRequests',
+    'includeWorldInfo', 'includeSetting', 'includeCharacter', 'settingFields', 'supporterProfile', 'supporterGender', 'supporterUserName', 'supporterUserGender', 'supporterUserIntro', 'uiFontSize', 'chatFontSize', 'uiFontFamily', 'cardFields', 'autoSaveHistory', 'completionSound', 'spoilerProtection', 'unfamiliarSource', 'matureContent', 'streamRequests',
 ];
 
 // 대화형 서포터 표정 — 모델이 답마다 <face>로 고름 (이미지가 없는 표정은 기본 표정으로)

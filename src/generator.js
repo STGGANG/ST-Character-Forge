@@ -502,7 +502,7 @@ function roleAndSourceRules(mode, { worldOnly = false } = {}) {
     return [getPrompt('role'), wrapIf('source_rules', getPrompt('sourceRules'))];
 }
 
-// 작업 지시 뒤: 작성 원칙 → 스포일러 방지(페르소나, 켰을 때) → 설계 방향(봇 생성) → 문체 → 분량
+// 작업 지시 뒤: 작성 원칙 → 스포일러 방지·원작 몰라도 OK(페르소나, 켰을 때) → 설계 방향(봇 생성) → 문체 → 분량
 // options: { worldOnly, fixedLayout, direction } — fixedLayout·worldOnly는 분량 블록에 덧붙일 줄을 정함
 function craftBlocks(mode, { worldOnly = false, fixedLayout = false, direction = null } = {}) {
     const blocks = [];
@@ -511,6 +511,10 @@ function craftBlocks(mode, { worldOnly = false, fixedLayout = false, direction =
     if (mode !== 'bot' && getSettings().spoilerProtection) {
         const spoiler = getPrompt('spoiler');
         if (spoiler) blocks.push(wrap('spoiler_policy', spoiler));
+    }
+    if (mode !== 'bot' && getSettings().unfamiliarSource) {
+        const unfamiliar = getPrompt('unfamiliarSource');
+        if (unfamiliar) blocks.push(wrap('unfamiliar_source', unfamiliar));
     }
     if (direction) blocks.push(wrapIf('design_direction', getPrompt(BOT_DIRECTIONS[direction].slot)));
     const style = getPrompt('writingStyle', mode);
@@ -1578,6 +1582,8 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
         !!densityBlock(scope), density.slot ? '비어 있음' : '설정 탭에서 기본형');
     const addSpoiler = () => add('system', '스포일러 방지 (페르소나)', 'spoiler', '<spoiler_policy> — 기존 캐릭터의 비밀을 드러내지 않기',
         !!settings.spoilerProtection && !!getPrompt('spoiler'), settings.spoilerProtection ? '비어 있음' : '설정 탭에서 꺼짐');
+    const addUnfamiliar = () => add('system', '원작 몰라도 OK (페르소나)', 'unfamiliarSource', '<unfamiliar_source> — 원작 설정을 몰라도 바로 플레이할 수 있게',
+        !!settings.unfamiliarSource && !!getPrompt('unfamiliarSource'), settings.unfamiliarSource ? '비어 있음' : '설정 탭에서 꺼짐');
     // 추가 지침 — 프롬프트 탭에서 고른 자리에만 (place가 그 자리일 때 추가)
     const guidelinesPlace = getGuidelinesPlacement(isBot ? 'botGuidelines' : 'guidelines');
     const addGuidelines = (place) => {
@@ -1701,7 +1707,10 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
     if (isBot && worldOnly) add('system', '작성 원칙 (세계관만)', 'worldPrinciples', '<principles> — 들어서기 쉽고, 장면을 움직일 거리와 일관된 규칙이 있는 세계', !!getPrompt('worldPrinciples'), '비어 있음');
     else if (isBot) add('system', '작성 원칙 (봇)', 'botPrinciples', '<principles> — 입체적이고 스스로 움직이는 인물을 만드는 기준', !!getPrompt('botPrinciples'), '비어 있음');
     else add('system', '작성 원칙 (페르소나)', 'principles', '<principles> — 입체적인 인물을 만드는 기준', !!getPrompt('principles'), '비어 있음');
-    if (!isBot) addSpoiler();
+    if (!isBot) {
+        addSpoiler();
+        addUnfamiliar();
+    }
     if (kind === 'generate' && isBot && !worldOnly) {
         const direction = BOT_DIRECTIONS[settings.botDirection] || BOT_DIRECTIONS.relational;
         add('system', `설계 방향 — ${direction.label}`, direction.slot, '<design_direction> — 설정 탭에서 고른 방향', has(direction.slot), '비어 있음');
@@ -1822,6 +1831,7 @@ export async function generatePersona(config = {}) {
             greetings: [],
             templateId: meta.worldOnly ? 'world' : settings.templatePreset,
             language: meta.language,
+            density: settings.density || 'default', // 만들 때 고른 분량 (기록 목록에 표시)
             resultKind: 'original',
             model: received.model,
             timestamp: Date.now(),
@@ -1943,6 +1953,7 @@ export async function modifyProfile(instruction) {
         gen.sections = gen.isCustomSheet ? { _custom: { header: '', content: text } } : parseResponse(text);
         gen.fullText = text;
         gen.resultKind = 'modified';
+        gen.density = getSettings().density || 'default'; // 전체를 다시 쓴 분량
         gen.model = received.model;
         refreshBotName(gen);
         gen.incomplete = checkCompleteness({ kind: 'modify', truncated, expected, text, headers, gaps: received.gaps });
