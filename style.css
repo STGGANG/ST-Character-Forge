@@ -2,7 +2,7 @@
     --pf-font: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', system-ui, sans-serif;
     --pf-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
-    /* 기본 글자 크기 — 씬보이스와 같은 기준 (실리태번 글자 크기의 0.93배, 13~16px). 화면 → 글자 크기 배율을 곱해 씀 */
+    /* 기본 글자 크기 — 실리태번 글자 크기의 0.93배 (13~16px). 화면 → 글자 크기 배율을 곱해 씀 */
     --pf-fs: clamp(13px, calc(var(--mainFontSize, 15px) * .93), 16px);
 
     --pf-fg: var(--SmartThemeBodyColor, #dcdcd2);
