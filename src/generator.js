@@ -37,7 +37,7 @@ export function cleanGeneratedText(text, { scene = false } = {}) {
     let cleaned = String(text)
         // 추론 내용이 본문에 섞여 온 경우
         .replace(/^\s*<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>\s*/i, '')
-        // AutoPic 등 다른 확장 태그를 모델이 재생산한 경우
+        // 이미지 생성 태그를 모델이 그대로 따라 쓴 경우
         .replace(/<pic\s[^>]*>/gi, '')
         .replace(/<\/pic>/gi, '')
         .replace(/<image_generation>[\s\S]*?<\/image_generation>/gi, '')
@@ -464,7 +464,7 @@ export function guessWorldName(text) {
     return name.length <= 40 ? name : '';
 }
 
-// NSFW 지침 — 설정에서 켰을 때만 (번역 제외 모든 생성·서포터 대화). 수정본은 탭(persona/bot/supporter)마다 따로
+// NSFW 지침 — 설정에서 켰을 때만
 function matureContentBlock(scope) {
     if (!getSettings().matureContent) return '';
     const text = getPrompt('matureContent', scope);
@@ -1592,7 +1592,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
         add(place === 'user' ? 'user' : 'system', `추가 지침 (${isBot ? '봇' : '페르소나'})`, isBot ? 'botGuidelines' : 'guidelines',
             `<user_guidelines> — 기본 지시보다 우선 · 위치: ${GUIDELINE_PLACEMENTS[place].label}`, !!guidelines, '작성하지 않음');
     };
-    // NSFW 지침 — 켰을 때만 (번역은 "원문에 있는 것만" 줄이 덧붙음)
+    // NSFW 지침 — 켰을 때만
     const addMature = (matureScope = scope, desc = '노골적인 표현을 더 적극적으로 허용') => add('system', 'NSFW 지침', 'matureContent', `<smut_guidance> — ${desc}`,
         !!settings.matureContent && has('matureContent', matureScope), settings.matureContent ? '비어 있음' : '설정 탭에서 꺼짐');
 

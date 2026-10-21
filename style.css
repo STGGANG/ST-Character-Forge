@@ -2,6 +2,9 @@
     --pf-font: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', system-ui, sans-serif;
     --pf-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
+    /* 기본 글자 크기 — 씬보이스와 같은 기준 (실리태번 글자 크기의 0.93배, 13~16px). 화면 → 글자 크기 배율을 곱해 씀 */
+    --pf-fs: clamp(13px, calc(var(--mainFontSize, 15px) * .93), 16px);
+
     --pf-fg: var(--SmartThemeBodyColor, #dcdcd2);
     --pf-muted: color-mix(in srgb, var(--pf-fg) 62%, transparent);
     --pf-faint: color-mix(in srgb, var(--pf-fg) 40%, transparent);
@@ -11,6 +14,7 @@
     --pf-soft2: color-mix(in srgb, var(--pf-fg) 10%, transparent);
     --pf-soft3: color-mix(in srgb, var(--pf-fg) 22%, transparent);
     --pf-surface: var(--SmartThemeBlurTintColor, rgb(23, 23, 23));
+    --pf-surface-solid: var(--pf-surface);
     --pf-blur: var(--SmartThemeBlurStrength, 10px);
 
     --pf-accent: var(--SmartThemeQuoteColor, #e18a24);
@@ -27,6 +31,8 @@
 
     /* 주요 실행 버튼 색 — 지금 모드 색(페르소나 청록 / 봇 보라). 테마 강조색이 글자색과 같아도 구분되게 고정 색을 씀 */
     --pf-mode-color: #2fb5a0;
+    --pf-logo-from: #47cbb6;
+    --pf-logo-to: #1b8a7a;
     --pf-action-text: color-mix(in srgb, var(--pf-mode-color) 72%, var(--pf-fg));
     --pf-action-soft: color-mix(in srgb, var(--pf-mode-color) 16%, transparent);
     --pf-action-soft2: color-mix(in srgb, var(--pf-mode-color) 26%, transparent);
@@ -117,13 +123,19 @@
     z-index: 10000;
     justify-content: center;
     align-items: center;
-    padding: 16px;
+    padding: 20px;
     background: rgba(0, 0, 0, .45);
     color: var(--pf-fg);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     font-variant-numeric: tabular-nums;
     touch-action: manipulation;
+}
+
+@supports (color: rgb(from red r g b / 1)) {
+    .persona-forge-popup {
+        --pf-surface-solid: rgb(from var(--SmartThemeBlurTintColor, rgb(23, 23, 23)) r g b / 1);
+    }
 }
 
 .persona-forge-popup.open {
@@ -139,8 +151,8 @@
     display: flex;
     flex-direction: column;
     width: min(760px, 100%);
-    height: min(860px, calc(100vh - 32px));
-    height: min(860px, calc(100dvh - 32px));
+    height: min(900px, calc(100vh - 40px));
+    height: min(900px, calc(100dvh - 40px));
     background: var(--pf-surface);
     border: 1px solid var(--pf-line);
     border-radius: var(--pf-r-window);
@@ -149,7 +161,7 @@
     -webkit-backdrop-filter: blur(var(--pf-blur));
     overflow: hidden;
     /* 글자 크기 설정(화면 → 글자 크기)에 따라 배율 — 창 안의 글자·간격은 모두 이 크기를 기준으로 */
-    font-size: calc(var(--mainFontSize, 15px) * var(--pf-ui-scale, 1));
+    font-size: calc(var(--pf-fs) * var(--pf-ui-scale, 1));
     letter-spacing: -0.005em;
     text-align: left;
     animation: pf-rise .22s cubic-bezier(.2, .8, .3, 1);
@@ -164,22 +176,39 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 12px 12px 8px 18px;
+    padding: 14px 12px 10px 18px;
     flex-shrink: 0;
 }
 
 .pf-title {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 12px;
     min-width: 0;
-    font-size: 1.08em;
+    font-size: 1.1em;
     font-weight: 700;
     white-space: nowrap;
 }
 
-.persona-forge-popup .pf-title > i {
-    color: var(--pf-accent);
+/* 로고 — 망치를 모드 색(페르소나 청록 / 봇 보라) 그라데이션 칸에 (누르면 망치질) */
+.pf-logo {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    /* 다른 곳(모드 버튼·실행 버튼)처럼 옅은 반투명 — 파스텔 느낌 */
+    background: linear-gradient(135deg, color-mix(in srgb, var(--pf-logo-from) 34%, transparent), color-mix(in srgb, var(--pf-logo-to) 20%, transparent));
+    font-size: 16px;
+    cursor: default;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.persona-forge-popup .pf-logo > i {
+    color: var(--pf-action-text);
 }
 
 .pf-title-text {
@@ -224,6 +253,8 @@
 
 .persona-forge-popup.pf-mode-bot {
     --pf-mode-color: #a585ff;
+    --pf-logo-from: #b9a0ff;
+    --pf-logo-to: #7656dd;
 }
 
 /* 지금 모드를 색으로 구분 (페르소나: 청록 / 봇: 보라) */
@@ -268,12 +299,10 @@
     top: calc(100% + 6px);
     right: 0;
     z-index: 70;
-    min-width: 230px;
+    min-width: 250px;
     padding: 6px;
-    background: var(--pf-surface);
-    backdrop-filter: blur(var(--pf-blur));
-    -webkit-backdrop-filter: blur(var(--pf-blur));
-    border: 1px solid var(--pf-line);
+    background: var(--pf-surface-solid);
+    border: 1px solid var(--pf-line-strong);
     border-radius: var(--pf-r-group);
     box-shadow: var(--pf-shadow);
 }
@@ -306,10 +335,27 @@
     background: transparent !important;
     color: var(--pf-fg) !important;
     font-size: .9em !important;
-    font-weight: 500 !important;
+    font-weight: 600 !important;
     text-align: left;
     box-shadow: none !important;
     cursor: pointer;
+}
+
+.pf-more-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.pf-more-text > small {
+    font-size: .82em;
+    font-weight: 400;
+    color: var(--pf-muted);
+}
+
+.persona-forge-popup .pf-more-item.pf-more-danger .pf-more-text > small {
+    color: color-mix(in srgb, var(--pf-danger) 70%, transparent);
 }
 
 .persona-forge-popup .pf-more-item:hover {
@@ -348,14 +394,14 @@
     justify-content: center;
     gap: 7px;
     min-width: 0;
-    height: 38px;
+    height: 40px;
     padding: 0 6px !important;
     margin: 0 !important;
     border: 0 !important;
     border-radius: 11px !important;
     background: transparent !important;
     color: var(--pf-muted) !important;
-    font-size: .88em !important;
+    font-size: .93em !important;
     font-weight: 600 !important;
     box-shadow: none !important;
     cursor: pointer;
@@ -3871,8 +3917,8 @@
 
 .pf-hammer-pop {
     position: absolute;
-    top: -2px;
-    left: 18px;
+    top: -6px;
+    left: 30px;
     font-size: .7em;
     font-weight: 800;
     color: var(--pf-accent);
@@ -3903,7 +3949,7 @@
     /* 옅고 좁은 그림자 — 창 위에 살짝 떠 보이게만 */
     box-shadow: 0 4px 14px rgba(0, 0, 0, .09), 0 1px 3px rgba(0, 0, 0, .06);
     font-family: var(--pf-font);
-    font-size: calc(var(--mainFontSize, 15px) * var(--pf-ui-scale, 1) * .9);
+    font-size: calc(var(--pf-fs) * var(--pf-ui-scale, 1) * .9);
     line-height: 1.45;
     transform: translateX(-50%);
     cursor: pointer;
@@ -4007,23 +4053,69 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-    width: min(520px, 100%);
+    width: min(560px, 100%);
     max-height: calc(100vh - 32px);
     max-height: calc(100dvh - 32px);
-    padding: 20px 20px 16px;
-    background: var(--pf-surface);
-    border: 1px solid var(--pf-line);
+    padding: 20px 22px 18px;
+    background: var(--pf-surface-solid);
+    border: 1px solid var(--pf-line-strong);
     border-radius: var(--pf-r-window);
     box-shadow: var(--pf-shadow);
     font-family: var(--pf-font);
-    font-size: calc(var(--mainFontSize, 15px) * var(--pf-ui-scale, 1));
+    font-size: calc(var(--pf-fs) * var(--pf-ui-scale, 1));
     text-align: left;
     animation: pf-rise .2s cubic-bezier(.2, .8, .3, 1);
 }
 
+.pf-modal-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+}
+
+.pf-modal-heading {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.pf-modal-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: var(--pf-action-soft);
+}
+
+.persona-forge-popup .pf-modal-icon > i {
+    color: var(--pf-action-text);
+}
+
+.pf-modal-icon.pf-danger {
+    background: var(--pf-danger-soft);
+}
+
+.persona-forge-popup .pf-modal-icon.pf-danger > i {
+    color: var(--pf-danger);
+}
+
+.pf-modal-sub {
+    font-size: .85em;
+    color: var(--pf-muted);
+    overflow-wrap: anywhere;
+}
+
+.pf-modal-sub:empty {
+    display: none;
+}
+
 .persona-forge-popup .pf-modal-title {
     flex: none;
-    margin: 0;
+    margin: 0 0 2px;
     font-size: 1.1em;
     font-weight: 800;
     letter-spacing: -0.02em;
@@ -4041,13 +4133,6 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-}
-
-.persona-forge-popup .pf-modal-lead {
-    margin: 0;
-    font-size: .85em;
-    color: var(--pf-muted);
-    overflow-wrap: anywhere;
 }
 
 .pf-modal-label {
@@ -4230,8 +4315,8 @@
     flex-direction: column;
     gap: 16px;
     width: min(760px, 100%);
-    height: min(860px, calc(100vh - 32px));
-    height: min(860px, calc(100dvh - 32px));
+    height: min(900px, calc(100vh - 40px));
+    height: min(900px, calc(100dvh - 40px));
     padding: 22px 22px 18px;
     overflow: hidden;
     background: var(--pf-surface);
@@ -4239,7 +4324,7 @@
     border-radius: var(--pf-r-window);
     box-shadow: var(--pf-shadow);
     font-family: var(--pf-font);
-    font-size: var(--mainFontSize, 15px);
+    font-size: var(--pf-fs);
     animation: pf-rise .22s cubic-bezier(.2, .8, .3, 1);
 }
 

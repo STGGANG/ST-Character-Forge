@@ -302,7 +302,7 @@ export const defaultSettings = {
     chatFontSize: 'medium',
     // 글꼴 (pretendard: 확장 글꼴 | theme: 실리태번 테마 글꼴)
     uiFontFamily: 'pretendard',
-    // NSFW 지침 (켜면 번역을 뺀 모든 생성·서포터 대화에 <smut_guidance>)
+    // NSFW 지침 켜기
     matureContent: false,
     // 추가 지침이 들어갈 자리 { 슬롯: GUIDELINE_PLACEMENTS 키 }
     guidelinesPlacement: { guidelines: 'user', botGuidelines: 'user' },

@@ -280,7 +280,7 @@ export function bindUIEvents() {
     const $root = $('#persona-forge-popup');
 
     $root.on('click', '#pf-close-btn', closePopup);
-    $root.on('click', '#pf-title-hammer', onTitleHammerClick);
+    $root.on('click', '.pf-logo', onTitleHammerClick);
 
     // 바깥 배경을 눌렀을 때만 닫기 (안쪽에서 글자를 드래그하다 바깥에서 놓은 경우는 제외)
     let pressedBackdrop = false;
@@ -4653,12 +4653,13 @@ function onTitleHammerClick() {
     const taps = (settings.hammerTaps || 0) + 1;
     settings.hammerTaps = taps;
     saveSettings();
-    this.classList.remove('pf-hammer-swing');
-    void this.offsetWidth;
-    this.classList.add('pf-hammer-swing');
+    const hammer = document.getElementById('pf-title-hammer');
+    hammer.classList.remove('pf-hammer-swing');
+    void hammer.offsetWidth;
+    hammer.classList.add('pf-hammer-swing');
     const word = taps % 10 === 0 ? '손목 조심!' : '깡!';
     const $pop = $('<span class="pf-hammer-pop" aria-hidden="true"></span>').text(word);
-    $(this).closest('.pf-title').append($pop);
+    $(hammer).closest('.pf-title').append($pop);
     setTimeout(() => $pop.remove(), 900);
     playClang();
     if (taps >= HAMMER_TITLES[0].min) renderForgeRank();
@@ -4939,7 +4940,7 @@ function loadPromptSlot(slot) {
     const renamed = getPromptLabel(currentPromptSlot) ? `원래 이름: ${def.label}. ` : '';
     const others = promptScopesOf(currentPromptSlot).filter(item => item !== currentScope()).map(item => SCOPE_LABELS[item]);
     const shared = isScopedSlot(currentPromptSlot)
-        ? ` 이 칸은 ${others.join('·')} 탭에도 있습니다 (기본값은 같음). 고친 내용은 탭마다 따로 저장되고, 적용할 때 다른 탭에도 똑같이 넣을 수 있습니다.`
+        ? ` ${others.join('·')} 탭에도 있는 칸으로, 탭마다 따로 저장됩니다.`
         : '';
     $('#pf-prompt-slot-hint').text(`${renamed}${def.hint || ''}${shared}`);
     $('#pf-prompt-editor').val(getPrompt(currentPromptSlot, currentScope()));
@@ -5393,12 +5394,15 @@ function rankText(rank) {
 }
 
 // 대장간 창 안에 뜨는 작은 창 (내보내기·가져오기·초기화) — 설정 탭과 같은 모양
-// buttons: 왼쪽에 둘 추가 버튼 [{ text, icon, action }] (눌러도 창은 그대로), 확인하면 true
-function pfModal({ title, $body, okText, danger = false, buttons = [], onOpen }) {
+// icon: 제목 옆 배지 아이콘, subtitle: 제목 아래 한 줄, buttons: 왼쪽에 둘 추가 버튼 [{ text, icon, action }] (눌러도 창은 그대로), 확인하면 true
+function pfModal({ title, subtitle = '', icon = '', $body, okText, danger = false, buttons = [], onOpen }) {
     return new Promise((resolve) => {
         const $modal = $(`<div class="pf-modal" role="dialog" aria-modal="true">
             <div class="pf-modal-card">
-                <h3 class="pf-modal-title"></h3>
+                <div class="pf-modal-head">
+                    ${icon ? `<span class="pf-modal-icon${danger ? ' pf-danger' : ''}" aria-hidden="true"><i class="fa-solid ${escapeHtml(icon)}"></i></span>` : ''}
+                    <div class="pf-modal-heading"><h3 class="pf-modal-title"></h3><small class="pf-modal-sub"></small></div>
+                </div>
                 <div class="pf-modal-body"></div>
                 <div class="pf-modal-foot">
                     <span class="pf-modal-extra"></span>
@@ -5408,6 +5412,7 @@ function pfModal({ title, $body, okText, danger = false, buttons = [], onOpen })
             </div>
         </div>`);
         $modal.find('.pf-modal-title').text(title);
+        $modal.find('.pf-modal-sub').text(subtitle);
         $modal.find('.pf-modal-body').append($body);
         $modal.find('.pf-modal-ok').text(okText);
         for (const button of buttons) {
@@ -5464,14 +5469,13 @@ function switchRowHtml({ name, value = '1', icon, title, desc = '', checked = fa
 async function openExportDialog() {
     const historyCount = (await listHistory({ refresh: true })).length;
     const $body = $(`<div class="pf-modal-stack">
-        <p class="pf-modal-lead">내보낼 내용을 고르십시오.</p>
         <div class="pf-group-body">
             ${choiceRowHtml({ name: 'pf-export-kind', value: 'all', icon: 'fa-box-archive', title: '전체', desc: `설정값과 기록 ${historyCount}개 (남매 대화·그리팅·칭호 포함)`, checked: true })}
             ${choiceRowHtml({ name: 'pf-export-kind', value: 'history', icon: 'fa-clock-rotate-left', title: '기록', desc: `기록 ${historyCount}개 (남매 대화·그리팅 포함)와 칭호` })}
             ${choiceRowHtml({ name: 'pf-export-kind', value: 'settings', icon: 'fa-sliders', title: '설정값', desc: '설정 탭 선택값, 수정한 프롬프트·프리셋·추가 지침, 직접 만든 항목·양식 등 (기록·칭호 제외)' })}
         </div>
     </div>`);
-    if (!(await pfModal({ title: '내보내기', $body, okText: '내보내기' }))) return;
+    if (!(await pfModal({ title: '내보내기', subtitle: '내보낼 내용을 고르십시오.', icon: 'fa-file-export', $body, okText: '내보내기' }))) return;
     await exportBackup(String($body.find('input[name="pf-export-kind"]:checked').val() || 'all'));
 }
 
@@ -5552,7 +5556,6 @@ async function importBackup(parsed, fileName) {
     }).join('');
 
     const $body = $(`<div class="pf-modal-stack">
-        <p class="pf-modal-lead">${escapeHtml(fileName)}${parsed.exportedAt ? ` · ${escapeHtml(new Date(parsed.exportedAt).toLocaleString('ko-KR'))}` : ''}</p>
         ${settings ? `<div class="pf-modal-label">설정</div>
         <div class="pf-group-body">
             ${switchRowHtml({ name: 'pf-import-settings', icon: 'fa-sliders', title: '설정값', desc: '지금 설정을 파일 내용으로 바꿉니다 (설정 탭 선택값, 수정한 프롬프트·프리셋, 직접 만든 항목·양식 등)', checked: true })}
@@ -5569,7 +5572,8 @@ async function importBackup(parsed, fileName) {
     $all.on('change', () => $records.prop('checked', $all.prop('checked')));
     $records.on('change', () => $all.prop('checked', $records.length > 0 && $records.filter(':checked').length === $records.length));
 
-    if (!(await pfModal({ title: '가져오기', $body, okText: '가져오기' }))) return;
+    const fileInfo = `${fileName}${parsed.exportedAt ? ` · ${new Date(parsed.exportedAt).toLocaleString('ko-KR')}` : ''}`;
+    if (!(await pfModal({ title: '가져오기', subtitle: fileInfo, icon: 'fa-file-import', $body, okText: '가져오기' }))) return;
     const doSettings = !!settings && $body.find('input[name="pf-import-settings"]').prop('checked');
     const doRank = !!rank && $body.find('input[name="pf-import-rank"]').prop('checked');
     const picked = $records.filter(':checked').map((_, el) => history[Number(el.value)]).get();
@@ -5612,7 +5616,6 @@ async function openResetDialog() {
     const valueLabels = ['language', 'density', 'templatePreset', 'connectionProfile'].map(key => RESETTABLE_LABELS[key]).filter(Boolean);
     const chatsDesc = '기록은 두고 모루 남매 대화만';
     const $body = $(`<div class="pf-modal-stack">
-        <p class="pf-modal-lead">초기화할 것을 고르십시오. 되돌릴 수 없습니다.</p>
         <div class="pf-group-body">
             ${switchRowHtml({ name: 'pf-reset-all', icon: 'fa-rotate-left', title: '모두 선택', desc: '설치 직후 상태로 되돌립니다' })}
         </div>
@@ -5656,7 +5659,7 @@ async function openResetDialog() {
     $chats.add($rank).add($items.filter('[value="settings"], [value="custom"]')).on('change', refresh);
 
     const ok = await pfModal({
-        title: '초기화', $body, okText: '초기화', danger: true,
+        title: '초기화', subtitle: '초기화할 것을 고르십시오. 되돌릴 수 없습니다.', icon: 'fa-rotate-left', $body, okText: '초기화', danger: true,
         buttons: [{ text: '백업 먼저 내보내기', icon: 'fa-file-export', action: () => exportBackup('all') }],
         onOpen: ($modal) => {
             $ok = $modal.find('.pf-modal-ok');

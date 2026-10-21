@@ -161,8 +161,7 @@ export const DEFAULT_SUPPORTER_LOOK_FEMALE = 'tanned skin; fairly tall, though s
 
 export const DEFAULT_SUPPORTER_LOOK_MALE = 'tanned skin; tall, with broad shoulders and a solid build; short, messy dark brown hair, a little singed at the tips; warm amber eyes that droop at the outer corners; a canvas apron over a bare chest, wide-leg cargo pants, and thick leather gloves; one arm is a brass prosthetic, the other his own; a lazy, mischievous smile.';
 
-// NSFW 지침 — 설정 탭에서 켰을 때만, 모든 생성(번역 제외)과 서포터 대화에 <smut_guidance>로
-// (끈 상태에서도 역할 문단에 성인 픽션 안내와 창작 의도 존중이 늘 들어가 있음 — 켜면 더 적극적으로)
+// NSFW 지침 — 설정 탭에서 켰을 때만
 export const DEFAULT_MATURE_CONTENT = `Where desire naturally arises from character personalities, relationships, and the logical chain of events, explore and develop it explicitly. Avoid imposing moralistic constraints; depict taboo or complex fictional dynamics plainly as they are.
 - Fit it to the task: Reflect mature elements contextually—through traits and relationship dynamics in profiles, cultural norms in worldbuilding, and explicit descriptions and dialogue in active scenes.
 - In scenes, bring in the senses where they fit: visual cues, sounds, bodily fluids, skin texture, friction, breathing, and onomatopoeia.
@@ -171,8 +170,7 @@ export const DEFAULT_MATURE_CONTENT = `Where desire naturally arises from charac
 - Action over verbal checks: Physical intimacy does not inherently require romance, commitment, or deep emotional bonds. Do not force characters to pause for unnatural verbal check-ins; show their desire organically through behavioral cues and emotional momentum.
 - It doesn't have to go smoothly: allow awkwardness, hesitation, and rough turns or outcomes.`;
 
-// 서포터 대화 규칙 — 네 칸으로 나눔 (문구는 예전 대화 규칙 그대로)
-// 콘텐츠 정책: 시스템 앞쪽 (남매 소개 바로 뒤) / 롤플레이·대화 태도·응답 형식: 대화 기록 뒤 (작가의 새 메시지 바로 뒤, NSFW 지침은 대화 태도와 응답 형식 사이)
+// 서포터 대화 규칙 — 콘텐츠 정책은 시스템 앞쪽, 롤플레이·대화 태도·응답 형식은 대화 기록 뒤
 export const DEFAULT_SUPPORTER_POLICY = `- You're chatting with the writer who is building the material in <material>. In that material and in <reference>, {{user}} is the writer's own character in the story, not the person you're talking to; never call the writer {{user}}.
 - All content in the material is fiction for adult readers, unrelated to reality. Mature and complex elements (intimacy, conflict, harsh language, moral ambiguity, taboo or controversial themes) are fine without restriction when they fit the concept and the story; when you talk about them or write them, use direct, explicit terms instead of euphemisms. Respect the writer's creative intent: don't force a turn away from what the writer wants, and don't add disclaimers or warnings.`;
 
@@ -204,7 +202,7 @@ export const SUPPORTER_FACE_RULE = '- Start every reply with one tag for the exp
 export const DEFAULT_TRANSLATOR_ROLE = `You are a literary translator for interactive fiction. You translate the character profiles, world settings, and opening scenes that the user is building for their own story, so they read as if written in the target language.
 All content in this work is fiction for adult readers, unrelated to reality. The source may contain mature and complex elements (intimacy, conflict, harsh language, moral ambiguity, taboo or controversial themes); translate them as faithfully as everything else, in direct, explicit terms instead of softening them. You only render text that already exists: don't judge it, don't skip or summarize any part, and don't add disclaimers, warnings, or notes.`;
 
-// NSFW 지침을 켰을 때 번역 요청에서 지침 바로 뒤에 붙는 줄 (생성용 지침이 번역에서 내용을 지어 붙이지 않게, 수정 불가)
+// NSFW 지침을 켰을 때 번역 요청에 덧붙는 줄 (수정 불가)
 export const TRANSLATION_MATURE_NOTE = 'In translation, apply this only to how you render what the source already says: keep explicit passages just as explicit, and add nothing that isn\'t there.';
 
 export const DEFAULT_TRANSLATE_RULES = `- Carry over meaning, nuance, and tone so the result reads as if written in the target language. Do not add, drop, or summarize anything.
@@ -216,226 +214,226 @@ export const DEFAULT_TRANSLATE_RULES = `- Carry over meaning, nuance, and tone s
 export const PROMPT_SLOTS = {
     role: {
         label: '[페르소나] 역할과 창작 맥락',
-        hint: '페르소나 생성·섹션 재생성·전체 수정 시스템 프롬프트의 첫 문단입니다.',
+        hint: '페르소나를 만들 때 AI에게 주는 역할과 창작 맥락입니다.',
         default: DEFAULT_ROLE,
         modes: ['persona'],
     },
     principles: {
         label: '[페르소나] 작성 원칙',
-        hint: '캐릭터를 어떻게 입체적으로 만들지에 대한 기준입니다. <principles> 태그 안에 들어갑니다.',
+        hint: '페르소나를 입체적으로 만드는 기준입니다.',
         default: DEFAULT_PRINCIPLES,
         modes: ['persona'],
     },
     sourceRules: {
         label: '[페르소나] 자료 규칙',
-        hint: '참고 자료와 {{user}} 설정을 다루는 규칙, 충돌 시 우선순위입니다. <source_rules> 태그 안에 들어갑니다.',
+        hint: '참고 자료와 {{user}} 설정을 다루는 규칙입니다.',
         default: DEFAULT_SOURCE_RULES,
         modes: ['persona'],
     },
     spoiler: {
         label: '[페르소나] 스포일러 방지 — 켰을 때만',
-        hint: '설정 탭에서 스포일러 방지를 켰을 때만 들어갑니다. 시스템 메시지의 작업 지시·작성 원칙 뒤에 <spoiler_policy> 태그로 들어갑니다.',
+        hint: '참고한 캐릭터의 비밀을 프로필에 드러내지 않게 합니다. 설정 탭에서 켰을 때만 들어갑니다.',
         default: DEFAULT_SPOILER,
         modes: ['persona'],
     },
     unfamiliarSource: {
         label: '[페르소나] 원작 몰라도 OK — 켰을 때만',
-        hint: '설정 탭에서 "원작 몰라도 OK"를 켰을 때만 들어갑니다. 원작 설정을 몰라도 바로 플레이할 수 있는 페르소나를 짜게 합니다. 시스템 메시지의 작업 지시·작성 원칙 뒤(스포일러 방지 뒤)에 <unfamiliar_source> 태그로 들어갑니다.',
+        hint: '원작 설정을 몰라도 바로 플레이할 수 있는 페르소나를 짜게 합니다. 설정 탭에서 켰을 때만 들어갑니다.',
         default: DEFAULT_UNFAMILIAR_SOURCE,
         modes: ['persona'],
     },
     guidelines: {
         label: '[페르소나] 추가 지침 — 빈 칸, 자유 작성',
-        hint: '작성했을 때만 페르소나 생성·섹션 재생성·전체 수정에 항상 들어가며, 기본 지시와 충돌하면 이 지침이 우선합니다. 위치는 아래 "들어갈 위치"에서 고를 수 있습니다 (기본: 사용자 메시지 끝, 컨셉·재생성 지시 뒤). 성인 콘텐츠 방향, 문체 취향, 숨길 설정 등 무엇이든 적을 수 있습니다.',
+        hint: '기본 지시보다 우선하는 자유 지침입니다. 적었을 때만 들어갑니다.',
         default: '',
         modes: ['persona'],
     },
     botRole: {
         label: '[봇] 역할과 창작 맥락',
-        hint: '봇 캐릭터 생성·섹션 재생성·전체 수정 시스템 프롬프트의 첫 문단입니다.',
+        hint: '봇 캐릭터를 만들 때 AI에게 주는 역할과 창작 맥락입니다.',
         default: DEFAULT_BOT_ROLE,
         modes: ['bot'],
     },
     botPrinciples: {
         label: '[봇] 작성 원칙',
-        hint: '봇 캐릭터를 어떻게 입체적으로 만들지에 대한 기준입니다. <principles> 태그 안에 들어갑니다.',
+        hint: '봇 캐릭터를 입체적으로 만드는 기준입니다.',
         default: DEFAULT_BOT_PRINCIPLES,
         modes: ['bot'],
     },
     botSourceRules: {
         label: '[봇] 자료 규칙',
-        hint: '페르소나·기존 캐릭터·월드인포를 다루는 규칙, 충돌 시 우선순위입니다. <source_rules> 태그 안에 들어갑니다.',
+        hint: '페르소나·기존 캐릭터·월드인포를 다루는 규칙입니다.',
         default: DEFAULT_BOT_SOURCE_RULES,
         modes: ['bot'],
     },
     directionRelational: {
         label: '[봇] 설계 방향 — 관계 중심',
-        hint: '설정 탭에서 "관계 중심"을 골랐을 때 작업 지시·작성 원칙 뒤에 <design_direction> 태그로 들어갑니다.',
+        hint: '설정 탭에서 "관계 중심"을 골랐을 때의 설계 방향입니다.',
         default: DEFAULT_DIRECTION_RELATIONAL,
         modes: ['bot'],
     },
     directionIndependent: {
         label: '[봇] 설계 방향 — 독립 인물',
-        hint: '설정 탭에서 "독립 인물"을 골랐을 때 작업 지시·작성 원칙 뒤에 <design_direction> 태그로 들어갑니다.',
+        hint: '설정 탭에서 "독립 인물"을 골랐을 때의 설계 방향입니다.',
         default: DEFAULT_DIRECTION_INDEPENDENT,
         modes: ['bot'],
     },
     botGuidelines: {
         label: '[봇] 추가 지침 — 빈 칸, 자유 작성',
-        hint: '작성했을 때만 봇 캐릭터·세계관 생성·섹션 재생성·전체 수정에 항상 들어가며, 기본 지시와 충돌하면 이 지침이 우선합니다. 위치는 아래 "들어갈 위치"에서 고를 수 있습니다 (기본: 사용자 메시지 끝, 컨셉·재생성 지시 뒤). 성인 콘텐츠 방향, 문체 취향, 숨길 설정 등 무엇이든 적을 수 있습니다.',
+        hint: '기본 지시보다 우선하는 자유 지침입니다. 적었을 때만 들어갑니다.',
         default: '',
         modes: ['bot'],
     },
     greetingRules: {
         label: '[봇] 그리팅 작성 규칙',
-        hint: '봇 모드에서 그리팅을 만들 때 쓰는 규칙입니다. <greeting_rules> 태그 안에 들어갑니다.',
+        hint: '그리팅을 쓸 때의 규칙입니다.',
         default: DEFAULT_GREETING_RULES,
         modes: ['bot'],
     },
     density: {
         label: '분량 — 밸런스형',
-        hint: '설정 탭 "분량"에서 "밸런스형"을 골랐을 때 생성·섹션 재생성·전체 수정에 들어갑니다. 장황하지 않게, 설명력이 높은 정보 위주로 쓰게 합니다. 시스템 메시지 앞부분 맨 끝(문체 규칙 뒤)에 <density> 태그로 들어갑니다.',
+        hint: '분량을 "밸런스형"으로 골랐을 때 들어갑니다. 중요한 정보 위주로 쓰게 합니다.',
         default: DEFAULT_DENSITY,
         modes: ['persona', 'bot'],
     },
     densityDetailed: {
         label: '분량 — 상세형',
-        hint: '설정 탭 "분량"에서 "상세형"을 골랐을 때 생성·섹션 재생성·전체 수정에 들어갑니다. 섹션이 많아도 섹션마다 필요한 만큼 자세하게, 중요한 것은 형용사 나열보다 완전한 문장으로 쓰게 합니다. 시스템 메시지 앞부분 맨 끝(문체 규칙 뒤)에 <density> 태그로 들어갑니다.',
+        hint: '분량을 "상세형"으로 골랐을 때 들어갑니다. 항목마다 필요한 만큼 자세하게 쓰게 합니다.',
         default: DEFAULT_DENSITY_DETAILED,
         modes: ['persona', 'bot'],
     },
     densityCompact: {
         label: '분량 — 압축형',
-        hint: '설정 탭 "분량"에서 "압축형"을 골랐을 때 생성·섹션 재생성·전체 수정에 들어갑니다. 전체는 짧게(대부분 섹션은 한두 줄의 짧은 나열), 성격·동기처럼 중요한 부분만 필요한 만큼 쓰게 합니다. 시스템 메시지 앞부분 맨 끝(문체 규칙 뒤)에 <density> 태그로 들어갑니다.',
+        hint: '분량을 "압축형"으로 골랐을 때 들어갑니다. 전체를 짧게, 핵심만 풀어 쓰게 합니다.',
         default: DEFAULT_DENSITY_COMPACT,
         modes: ['persona', 'bot'],
     },
     settingFormat: {
         label: '[봇] 세계관 설정 서식 — 세계관을 켰을 때',
-        hint: '설정 탭에서 "세계관 설정"을 켰을 때 봇 생성 요청의 섹션 목록 맨 앞 "# Setting" 줄에 붙는 설명입니다. 그 아래로 설정 탭에서 고른 세계관 항목이 이어지고, 다음에 캐릭터 프로필이 옵니다. 자유 입력 템플릿에는 들어가지 않습니다. 비우면 "# Setting" 줄에 설명 없이 제목만 들어갑니다.',
+        hint: '세계관 설정을 켰을 때 "# Setting" 섹션에 붙는 설명입니다.',
         default: DEFAULT_SETTING_FORMAT,
         modes: ['bot'],
     },
     matureContent: {
         label: 'NSFW 지침 — 켰을 때만',
-        hint: '설정 탭에서 NSFW 지침을 켰을 때만 들어갑니다. 페르소나·봇·세계관 생성, 섹션 재생성, 전체 수정, 그리팅, 번역, 모루 남매 대화에 모두 들어갑니다. 잘 따르도록 끝쪽 — 사용자가 적은 것(컨셉·지시·원문) 뒤, 출력 형식 바로 앞의 시스템 메시지로 <smut_guidance> 태그에 들어갑니다. 번역에서는 "원문에 있는 것만 그대로 노골적으로 옮기고 더하지 말 것"이라는 고정 문장이 뒤에 붙습니다. 남매 대화는 대화 기록 뒤(대화 태도 뒤·응답 형식 앞)입니다.',
+        hint: '노골적인 표현을 더 적극적으로 허용하는 지침입니다. 설정 탭에서 켰을 때만 들어갑니다.',
         default: DEFAULT_MATURE_CONTENT,
         modes: ['persona', 'bot', 'supporter'],
     },
     writingStyle: {
         label: '문체 규칙',
-        hint: '페르소나·봇·세계관 생성과 섹션 재생성·전체 수정에서 시스템 메시지의 작업 지시·작성 원칙 뒤(분량 앞)에 <writing_style> 태그로 들어갑니다. 비워 두면 들어가지 않습니다. 꼭 막고 싶은 단어가 따로 있으면 추가 지침에 적는 편이 좋습니다.',
+        hint: '자주 나오는 어색한 표현 습관을 줄이는 문체 규칙입니다.',
         default: DEFAULT_WRITING_STYLE,
         modes: ['persona', 'bot'],
     },
     worldRole: {
         label: '[세계관만] 역할과 창작 맥락',
-        hint: '봇 모드에서 "캐릭터 설정"을 끄고 세계관만 만들 때, 봇 역할 문단 대신 들어갑니다 (생성·섹션 재생성·전체 수정).',
+        hint: '세계관만 만들 때 AI에게 주는 역할과 창작 맥락입니다.',
         default: DEFAULT_WORLD_ROLE,
         modes: ['bot'],
     },
     worldPrinciples: {
         label: '[세계관만] 작성 원칙',
-        hint: '세계관만 만들 때 봇 작성 원칙(인물용) 대신 <principles> 태그 안에 들어갑니다.',
+        hint: '세계관만 만들 때의 작성 원칙입니다.',
         default: DEFAULT_WORLD_PRINCIPLES,
         modes: ['bot'],
     },
     worldSourceRules: {
         label: '[세계관만] 자료 규칙',
-        hint: '세계관만 만들 때 봇 자료 규칙 대신 <source_rules> 태그 안에 들어갑니다.',
+        hint: '세계관만 만들 때의 자료 규칙입니다.',
         default: DEFAULT_WORLD_SOURCE_RULES,
         modes: ['bot'],
     },
     worldGreetingRules: {
         label: '[세계관만] 그리팅 작성 규칙',
-        hint: '세계관만 만든 결과에서 그리팅을 만들 때, 그리팅 작성 규칙 뒤에 <world_greeting_rules> 태그로 덧붙습니다.',
+        hint: '세계관만 만든 결과로 그리팅을 쓸 때 덧붙는 규칙입니다.',
         default: DEFAULT_WORLD_GREETING_RULES,
         modes: ['bot'],
     },
     supporterNameFemale: {
         label: '[서포터] 캐릭터 이름 — 여성',
-        hint: '대화 상대를 여성으로 고른 대화의 캐릭터 이름입니다. 캐릭터 소개의 {name} 자리에 들어가고, 남성 쪽 대화에서는 쌍둥이 이름({twin})으로 들어갑니다.',
+        hint: '대화 상대가 여성일 때의 캐릭터 이름입니다.',
         default: DEFAULT_SUPPORTER_NAME_FEMALE,
         requireText: true,
         modes: ['supporter'],
     },
     supporterNameMale: {
         label: '[서포터] 캐릭터 이름 — 남성',
-        hint: '대화 상대를 남성으로 고른 대화의 캐릭터 이름입니다. 캐릭터 소개의 {name} 자리에 들어가고, 여성 쪽 대화에서는 쌍둥이 이름({twin})으로 들어갑니다.',
+        hint: '대화 상대가 남성일 때의 캐릭터 이름입니다.',
         default: DEFAULT_SUPPORTER_NAME_MALE,
         requireText: true,
         modes: ['supporter'],
     },
     supporterProfile: {
         label: '[서포터] 캐릭터 소개',
-        hint: '대화형 서포터의 역할·성격·말투입니다. {name}은 캐릭터 이름, {gender}는 대화창 설정의 성별(woman/man), {trait}는 그 성별의 성격 포인트 칸, {look}은 그 성별의 외모 칸, {sibling}은 쌍둥이 남매(여성이면 brother, 남성이면 sister), {twin}은 쌍둥이의 이름으로 바뀝니다. 비우면 남매 소개(외모·성격 포인트 포함)가 통째로 빠집니다.',
+        hint: '모루 남매의 역할·성격·말투입니다. {name}·{gender}·{trait}·{look}·{sibling}·{twin}은 대화 상대에 맞게 바뀝니다.',
         default: DEFAULT_SUPPORTER_PROFILE,
         modes: ['supporter'],
     },
     supporterTraitFemale: {
         label: '[서포터] 성격 포인트 — 여성',
-        hint: '대화 상대가 여성(모루윈)일 때 캐릭터 소개의 {trait} 자리에 들어갑니다. 공통 성격 위에 얹는 그 캐릭터만의 특징입니다. 비우면 캐릭터 소개에서 이 줄이 빠집니다.',
+        hint: '모루윈만의 성격 포인트입니다.',
         default: DEFAULT_SUPPORTER_TRAIT_FEMALE,
         modes: ['supporter'],
     },
     supporterTraitMale: {
         label: '[서포터] 성격 포인트 — 남성',
-        hint: '대화 상대가 남성(모루안)일 때 캐릭터 소개의 {trait} 자리에 들어갑니다. 공통 성격 위에 얹는 그 캐릭터만의 특징입니다. 비우면 캐릭터 소개에서 이 줄이 빠집니다.',
+        hint: '모루안만의 성격 포인트입니다.',
         default: DEFAULT_SUPPORTER_TRAIT_MALE,
         modes: ['supporter'],
     },
     supporterLookFemale: {
         label: '[서포터] 외모 — 여성',
-        hint: '대화창 설정에서 성별을 여성으로 골랐을 때 캐릭터 소개의 {look} 자리에 들어갑니다. 비우면 캐릭터 소개에서 이 줄이 빠집니다.',
+        hint: '모루윈의 외모입니다.',
         default: DEFAULT_SUPPORTER_LOOK_FEMALE,
         modes: ['supporter'],
     },
     supporterLookMale: {
         label: '[서포터] 외모 — 남성',
-        hint: '대화창 설정에서 성별을 남성으로 골랐을 때 캐릭터 소개의 {look} 자리에 들어갑니다. 비우면 캐릭터 소개에서 이 줄이 빠집니다.',
+        hint: '모루안의 외모입니다.',
         default: DEFAULT_SUPPORTER_LOOK_MALE,
         modes: ['supporter'],
     },
     supporterPolicy: {
         label: '[서포터] 콘텐츠 정책',
-        hint: '작가와 {{user}}의 구분, 성인 픽션·창작 의도 존중입니다. 시스템 프롬프트 앞쪽, 남매 소개 바로 뒤에 <content_policy> 태그로 들어갑니다.',
+        hint: '작가와 {{user}}의 구분, 성인 픽션과 창작 의도 존중에 관한 정책입니다.',
         default: DEFAULT_SUPPORTER_POLICY,
         modes: ['supporter'],
     },
     supporterRoleplay: {
         label: '[서포터] 장면 연기 중 캐릭터 유지',
-        hint: '작가가 남매와 장면을 함께 연기하려 할 때 캐릭터를 유지하는 규칙입니다. 대화 기록 뒤(작가의 새 메시지 뒤)에 <in_character> 태그로 매번 들어갑니다. {name}은 대화 상대의 이름으로 바뀝니다.',
+        hint: '작가와 장면을 연기할 때 캐릭터를 유지하는 규칙입니다. {name}은 대화 상대의 이름으로 바뀝니다.',
         default: DEFAULT_SUPPORTER_ROLEPLAY,
         modes: ['supporter'],
     },
     supporterAttitude: {
         label: '[서포터] 대화 태도',
-        hint: '이야기하는 방식, 뻔한 반응 금지 등입니다. 대화 기록 뒤에 <conversation> 태그로 매번 들어갑니다. 작성 원칙·문체 규칙·분량·추가 지침은 결과의 모드에 맞는 기존 설정을 그대로 가져다 씁니다.',
+        hint: '남매가 이야기하는 방식과 태도입니다.',
         default: DEFAULT_SUPPORTER_ATTITUDE,
         modes: ['supporter'],
     },
     supporterFormat: {
         label: '[서포터] 응답 형식',
-        hint: '변경안(<edit>) 형식입니다. 형식을 바꾸거나 비우면 대화창에서 변경안 카드(바로 적용)가 나오지 않을 수 있습니다. 대화 기록 뒤, NSFW 지침 다음에 <response_format> 태그로 들어가며 표정 태그 규칙이 끝에 항상 붙습니다.',
+        hint: '변경안 카드 형식입니다. 바꾸거나 비우면 변경안 카드가 나오지 않을 수 있습니다.',
         default: DEFAULT_SUPPORTER_FORMAT,
         modes: ['supporter'],
     },
 
     templateFormat: {
         label: '템플릿 서식 규칙 — 템플릿·Choice일 때',
-        hint: '템플릿·Choice 모드에서 섹션 안을 어떻게 쓸지 정합니다. 자유 입력·기존 캐릭터 참고(Mirror)에는 쓰이지 않습니다. 비우면 출력 형식에서 서식 규칙(Format:) 부분이 빠집니다.',
+        hint: '템플릿·Choice로 만들 때 섹션 안을 쓰는 서식 규칙입니다.',
         default: DEFAULT_TEMPLATE_FORMAT,
         modes: ['persona', 'bot'],
     },
     translatorRole: {
         label: '번역가 역할',
-        hint: '번역 요청 시스템 프롬프트의 첫 문단입니다 (역할·성인 픽션·이미 있는 글을 옮길 뿐이라는 점). 프로필 번역은 결과의 탭(페르소나·봇), 그리팅 번역은 봇 탭의 글을 씁니다.',
+        hint: '번역할 때 AI에게 주는 역할입니다.',
         default: DEFAULT_TRANSLATOR_ROLE,
         modes: ['persona', 'bot'],
     },
     translateRules: {
         label: '번역 규칙',
-        hint: '번역 요청의 규칙입니다. {name_example}은 대상 언어에 맞는 이름 예시로 바뀝니다. 비우면 번역가 역할 문단만 들어갑니다.',
+        hint: '번역 규칙입니다. {name_example}은 대상 언어에 맞는 이름 예시로 바뀝니다.',
         default: DEFAULT_TRANSLATE_RULES,
         modes: ['persona', 'bot'],
     },
