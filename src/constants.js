@@ -399,19 +399,20 @@ export const SUPPORTER_FACES = [
     { id: 'shy', label: '수줍음' },
 ];
 
-// 대화형 서포터 기본 프로필 이미지 (성별·표정별 이미지 주소 — 비어 있으면 아이콘)
+// 대화형 서포터 기본 프로필 이미지 (성별·표정별, 확장 폴더의 img/ — 외부 이미지 서버에 기대지 않음)
+const avatarFile = name => `${extensionFolderPath}/img/${name}.jpg`;
 export const SUPPORTER_AVATARS = {
     female: {
-        neutral: 'https://i.ibb.co/RkdWbctf/Woman-Neutral.jpg',
-        smile: 'https://i.ibb.co/TMRBQhkG/Woman-Smile.jpg',
-        surprised: 'https://i.ibb.co/qLF5QXmc/Woman-Surprise.jpg',
-        shy: 'https://i.ibb.co/3Y4z4JDx/Woman-Shy.jpg',
+        neutral: avatarFile('woman-neutral'),
+        smile: avatarFile('woman-smile'),
+        surprised: avatarFile('woman-surprise'),
+        shy: avatarFile('woman-shy'),
     },
     male: {
-        neutral: 'https://i.ibb.co/kr3fk4g/Man-Neutral.jpg',
-        smile: 'https://i.ibb.co/Vc5v7M1S/Man-Smile.jpg',
-        surprised: 'https://i.ibb.co/B5z67xSM/Man-Surprise.jpg',
-        shy: 'https://i.ibb.co/FqNGNhbp/Man-Shy.jpg',
+        neutral: avatarFile('man-neutral'),
+        smile: avatarFile('man-smile'),
+        surprised: avatarFile('man-surprise'),
+        shy: avatarFile('man-shy'),
     },
 };
 
