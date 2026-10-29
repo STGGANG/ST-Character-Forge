@@ -183,13 +183,10 @@ export async function readCharacterWorldInfo(charIndex, settings) {
     // 직접 입력 / 캐릭터 없음: 연결된 북이 없으므로 전체 목록에서 직접 고름
     const charKey = manual ? charIndex : getCharacterKey(char);
     const stored = getStoredSelection(settings, charKey);
-    const books = [];
-
-    for (const found of await discoverBooks(char, manual ? -1 : charIndex)) {
-        const book = { ...found, selected: stored.books?.[found.key] ?? found.auto, loaded: false, error: '', entries: [] };
-        if (book.selected) await loadBookEntries(book, settings, charKey);
-        books.push(book);
-    }
+    const books = (await discoverBooks(char, manual ? -1 : charIndex))
+        .map(found => ({ ...found, selected: stored.books?.[found.key] ?? found.auto, loaded: false, error: '', entries: [] }));
+    // 고른 북은 한꺼번에 읽음 (하나씩 기다리면 북이 여럿일 때 목록이 늦게 뜸) — 실패한 북은 자기 자리에 오류 표시
+    await Promise.all(books.filter(book => book.selected).map(book => loadBookEntries(book, settings, charKey)));
 
     const loaded = books.filter(b => b.loaded);
     log(`World info: ${books.length} books listed, ${loaded.length} loaded (${loaded.reduce((n, b) => n + b.entries.length, 0)} entries)`);

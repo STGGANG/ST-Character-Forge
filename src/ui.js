@@ -161,6 +161,15 @@ function isImeComposing(e) {
 // 항목은 글 한 줄, 또는 { text, sub } (sub: 그 아래 작게 덧붙이는 설명)
 const UPDATE_HISTORY = [
     {
+        version: '2.2.1',
+        notes: [
+            '기록 자동 저장을 꺼 두면, 이미 기록에 있는 결과를 고쳤을 때 반영이 안 되던 문제를 고쳤습니다.',
+            "전체 편집이나 남매 변경안을 적용한 뒤에도 '잘림' 경고가 남던 문제를 고쳤습니다.",
+            '모바일에서 결과 제목 옆의 참고·월드인포 표시를 아래 줄로 내렸습니다.',
+            '월드인포 북이 여럿 연결된 캐릭터의 목록 읽기와 기록 내보내기가 빨라졌습니다.',
+        ],
+    },
+    {
         version: '2.2.0',
         notes: [
             "분량에 '상세형'을 추가했습니다. 항목이 많아도 항목마다 필요한 만큼, 각 항목을 더 자세하게 풀어 씁니다.",
@@ -260,8 +269,8 @@ function showUpdateNoticeOnce({ force = false } = {}) {
                     <span class="pf-update-version">v${EXTENSION_VERSION}</span>
                 </div>
                 <div class="pf-update-body">
-                    ${line('female', 'smile', '업데이트 끝났어요. 이번엔 분량에 상세형이 생겼어요. 항목이 많아도 대충 안 넘어가요.')}
-                    ${line('male', 'smile', '2차 원작을 잘 몰라도 페르소나를 짤 수 있는 스위치도 생겼어요! 설정 탭에 있어요.')}
+                    ${line('female', 'smile', '이번엔 자잘한 손질이에요. 불편하던 데 몇 군데 고쳤어요.')}
+                    ${line('male', 'smile', '늘 대장간 찾아 줘서 고마워요! 오늘도 좋은 인물 하나 벼려 봐요.')}
                     <div class="pf-update-notes">${updateHistoryHtml()}</div>
                 </div>
                 <button type="button" class="pf-primary-btn pf-update-ok">확인</button>
@@ -822,8 +831,8 @@ function switchTab(tabName) {
     const $body = $('.pf-body');
     const previous = $('.pf-tab.active').attr('data-tab');
     if (previous) tabScroll[previous] = $body.scrollTop();
-    $('.pf-tab').removeClass('active');
-    $(`.pf-tab[data-tab="${tabName}"]`).addClass('active');
+    $('.pf-tab').removeClass('active').attr('aria-selected', 'false');
+    $(`.pf-tab[data-tab="${tabName}"]`).addClass('active').attr('aria-selected', 'true');
     $('.pf-tab-content').removeClass('active');
     $(`#pf-${tabName}-tab`).addClass('active');
 
@@ -2313,6 +2322,7 @@ function renderGenerationResult(data) {
     // 직접 추가한 프로필은 처음부터 다시 만들 조건이 없어 전체 재생성을 숨김 (섹션 재생성·수정·번역은 가능)
     $('#pf-regen-all-btn').css('display', data.templateId === 'manual' ? 'none' : '');
     refreshResultHeader(data);
+    updateSaveHistoryButton();
     renderResultConcept(data);
     $('#pf-result-template').text(templateLabel);
     $('#pf-result-lang').text(langLabel);
@@ -2417,14 +2427,15 @@ function renderResultTitle(data = state.currentGeneration) {
     const isBot = data.mode === 'bot';
     let name = data.charName;
     let note = isBot ? (data.refName ? `참고: ${data.refName}` : (data.wiNames?.length ? worldInfoNote(data.wiNames) : '')) : '';
-    const made = isBot ? '' : guessProfileName(data.fullText);
-    if (made) {
-        name = made;
-        note = data.noTarget ? worldInfoNote(data.wiNames) : `참고: ${data.charName}`;
+    if (!isBot) {
+        // 이름 항목이 없으면 "○○용 페르소나" (참고 표시는 이름에 이미 들어 있어 생략)
+        const made = guessProfileName(data.fullText);
+        name = made || personaFallbackName(data);
+        note = data.noTarget ? worldInfoNote(data.wiNames) : (made ? `참고: ${data.charName}` : '');
     }
     if (data.templateId === 'manual') note = '직접 추가';
     if (data.customTitle) name = data.customTitle; // 기록 이름을 직접 바꾼 결과
-    const ref = note ? ` <span class="pf-result-ref">· ${escapeHtml(note)}</span>` : '';
+    const ref = note ? ` <span class="pf-result-ref">${escapeHtml(note)}</span>` : '';
     const icon = data.worldOnly ? 'fa-earth-asia' : (isBot ? 'fa-robot' : 'fa-user');
     $('#pf-result-char-name').html(`<i class="fa-solid ${icon}"></i> ${escapeHtml(name)}${ref}`);
 }
@@ -2762,6 +2773,7 @@ function refreshProfileView() {
     if (gen.isCustomSheet) renderCustomResultBlock(gen.fullText);
     else renderSectionCards(gen.sections);
     updateResultKindBadge();
+    updateIncompleteBanner(); // 글을 통째로 고치면 "잘림" 표시가 지워지므로 배너도 함께
     refreshResultHeader();
 }
 
@@ -3724,15 +3736,16 @@ function onSupportUndo() {
 
 // 결과를 제자리에서 고친 뒤 (직접 편집·섹션 재생성·서포터 바로 적용·되돌리기) 지금 기록에도 반영
 // — 안 하면 기록을 다시 불러왔을 때 고치기 전 글로 돌아감
+// 이미 기록에 있는 결과("기록에 저장"을 눌렀거나 자동 저장된 것)는 자동 저장을 꺼 두었어도 그 기록을 고침 (새로 저장하지는 않음)
 async function syncProfileToHistory(gen = state.currentGeneration) {
-    if (!getSettings().autoSaveHistory || !gen?.fullText) return;
+    if (!gen?.fullText || (!gen.historyId && !getSettings().autoSaveHistory)) return;
     try {
         const found = gen.historyId && await updateHistory(gen.historyId, {
             fullText: gen.fullText,
             kind: gen.resultKind || 'original',
         });
-        // 기록이 지워졌으면 새로 저장 (그사이 다른 결과를 불러왔으면 건너뜀)
-        if (!found && gen === state.currentGeneration) {
+        // 기록이 지워졌으면 새로 저장 (그사이 다른 결과를 불러왔거나 자동 저장이 꺼져 있으면 건너뜀)
+        if (!found && gen === state.currentGeneration && getSettings().autoSaveHistory) {
             gen.historyId = await addHistory(historyEntryFromCurrent(defaultHistoryName()));
             gen.supportChatLoadFailed = false;
         }
@@ -3745,7 +3758,7 @@ async function syncProfileToHistory(gen = state.currentGeneration) {
 
 async function syncGreetingToHistory() {
     const gen = state.currentGeneration;
-    if (!getSettings().autoSaveHistory || !gen) return;
+    if (!gen || (!gen.historyId && !getSettings().autoSaveHistory)) return;
     try {
         const texts = greetingTexts(gen);
         const found = gen.historyId && await updateHistory(gen.historyId, {
@@ -3753,7 +3766,7 @@ async function syncGreetingToHistory() {
             greetings: texts.length > 1 ? texts : '',
             greetingModels: greetingModelsOf(gen) || '',
         });
-        if (!found && gen.greeting?.text) {
+        if (!found && gen.greeting?.text && getSettings().autoSaveHistory) {
             gen.historyId = await addHistory(historyEntryFromCurrent(defaultHistoryName()));
             gen.supportChatLoadFailed = false;
         }
@@ -4076,30 +4089,49 @@ async function onApplyPersonaClick() {
     }
 }
 
+// 이미 기록에 있는 결과면 "사본으로 저장" — 지금 내용을 새 기록으로 하나 더 두고, 지금 결과는 원래 기록에 이어서 저장
 async function onSaveHistoryClick() {
-    if (!state.currentGeneration) {
+    const gen = state.currentGeneration;
+    if (!gen) {
         showToast('warning', '저장할 내용이 없습니다.');
         return;
     }
-
-    const name = await askText('기록 이름을 입력하십시오:', defaultHistoryName());
-    if (!name) return;
+    const saved = !!gen.historyId && !!(await findHistoryItem(gen.historyId));
+    if (!saved) gen.historyId = null; // 기록이 지워진 결과는 새로 저장
+    const copyName = `${gen.customTitle || defaultHistoryName()} (사본)`;
+    const name = await askText(saved ? '사본의 기록 이름을 입력하십시오:' : '기록 이름을 입력하십시오:', saved ? copyName : defaultHistoryName());
+    if (!name?.trim()) return;
 
     try {
-        const gen = state.currentGeneration;
-        const entry = historyEntryFromCurrent(name);
-        const custom = name.trim() !== defaultHistoryName();
-        if (custom) entry.customName = true;
-        gen.historyId = await addHistory(entry);
-        gen.supportChatLoadFailed = false; // 새 기록은 지금 대화를 자기 대화로 가짐
-        gen.customTitle = custom ? name.trim() : '';
-        renderResultTitle(gen);
-        showToast('success', '기록에 저장되었습니다.');
+        const entry = historyEntryFromCurrent(name.trim());
+        if (saved) {
+            entry.customName = true;
+            await addHistory(entry);
+            showToast('success', '사본을 기록에 저장했습니다. 지금 결과는 원래 기록에 이어서 저장됩니다.');
+        } else {
+            const custom = name.trim() !== defaultHistoryName();
+            if (custom) entry.customName = true;
+            gen.historyId = await addHistory(entry);
+            gen.supportChatLoadFailed = false; // 새 기록은 지금 대화를 자기 대화로 가짐
+            gen.customTitle = custom ? name.trim() : '';
+            renderResultTitle(gen);
+            showToast('success', '기록에 저장되었습니다.');
+        }
         updateHistoryUI();
     } catch (error) {
         logError('saveHistory', error);
         showToast('error', `기록 저장 실패: ${error.message}`);
     }
+}
+
+// "기록에 저장" 버튼 — 지금 결과가 기록에 있으면 "사본으로 저장" (history를 주면 그 기록이 아직 있는지도 봄)
+function updateSaveHistoryButton(history = null) {
+    const id = state.currentGeneration?.historyId;
+    const saved = !!id && (!history || history.some(item => item.id === id));
+    $('#pf-save-history-btn')
+        .toggleClass('pf-saved', saved)
+        .attr('title', saved ? '지금 내용을 새 기록으로 하나 더 저장합니다 (지금 결과는 원래 기록에 이어서 저장)' : '지금 내용을 기록에 저장합니다')
+        .html(saved ? '<i class="fa-solid fa-copy"></i> 사본으로 저장' : '<i class="fa-solid fa-bookmark"></i> 기록에 저장');
 }
 
 let historyRenderRevision = 0;
@@ -4160,7 +4192,14 @@ const RESULT_KIND_LABELS = { original: '원본', translation: '번역', modified
 function defaultHistoryName() {
     const gen = state.currentGeneration;
     if (gen?.mode === 'bot') return gen.charName || '새 캐릭터';
-    return guessProfileName(gen?.fullText) || gen?.charName || 'Unknown';
+    return guessProfileName(gen?.fullText) || personaFallbackName(gen);
+}
+
+// 페르소나 결과에 이름 항목이 없을 때의 이름 — 참고한 캐릭터 이름을 그대로 쓰면 그 캐릭터처럼 보여서 "○○용 페르소나"
+const PLACEHOLDER_TARGETS = new Set(['', '직접 입력한 캐릭터', '월드인포만 참고', 'Unknown']);
+function personaFallbackName(gen) {
+    const target = String(gen?.charName || '');
+    return !gen?.noTarget && !PLACEHOLDER_TARGETS.has(target) ? `${target}용 페르소나` : '새 페르소나';
 }
 
 // 기록 목록에 보일 이름 — 예전에 자동으로 붙던 " 페르소나"는 배지로 대신하므로 뗌
@@ -4245,6 +4284,7 @@ async function updateHistoryUI({ refresh = false } = {}) {
         history = [];
     }
     if (revision !== historyRenderRevision) return;
+    updateSaveHistoryButton(history);
 
     // 보관 개수를 넘어 오래된 기록이 지워졌으면 알림 (기록을 넣은 뒤에는 늘 이 함수로 목록을 다시 그림)
     const evicted = takeEvictedCount();

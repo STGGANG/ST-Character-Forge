@@ -1,7 +1,7 @@
 export const extensionName = "persona-forge";
 
 // manifest.json의 version과 같게 — 바뀌면 설치·업데이트 후 한 번 안내 창을 띄움
-export const EXTENSION_VERSION = '2.2.0';
+export const EXTENSION_VERSION = '2.2.1';
 
 // 글자 크기 — 대장간 창 전체(ui)와 모루 남매 대화(chat) 배율
 export const FONT_SCALES = {
@@ -185,8 +185,8 @@ export const PROFILE_FIELDS = {
         id: 'nsfw_appearance',
         label: 'NSFW 외모',
         labelEn: 'NSFW APPEARANCE',
-        description: "intimate physical details (shape, grooming, and how their body responds, such as fluids); exact size isn't required, but if a man's size is described, treat 20 cm or more as large",
-        descriptionKo: '은밀한 신체적 세부 사항 (형태, 관리 상태, 체질에 따른 반응·체액 등). 정확한 크기는 꼭 쓰지 않아도 되지만, 남성의 크기를 묘사할 때는 20cm 이상을 \'크다\'로 봄',
+        description: 'intimate physical details (shape, grooming, and how their body responds, such as fluids)',
+        descriptionKo: '은밀한 신체적 세부 사항 (형태, 관리 상태, 체질에 따른 반응·체액 등)',
         icon: 'fa-solid fa-eye-slash',
         nsfw: true,
     },

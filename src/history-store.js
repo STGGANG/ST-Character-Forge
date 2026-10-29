@@ -299,17 +299,17 @@ export async function saveSupportChat(id, chat, gender) {
 }
 
 // 내보내기용 — 대화를 다시 기록 안에 합쳐 예전 형식 그대로 (옛 버전에서도 가져올 수 있게)
+// 대화 파일은 몇 개씩 묶어 한꺼번에 읽음 (하나씩 기다리면 대화가 있는 기록이 많을 때 오래 걸림)
+const EXPORT_CHAT_BATCH = 8;
 export async function exportHistoryItems() {
-    const list = await listHistory({ refresh: true });
-    const out = [];
-    for (const item of list) {
-        const copy = structuredClone(item);
-        if (copy.supportChatFile) {
-            const chat = await loadSupportChat(item, { strict: true });
+    const out = (await listHistory({ refresh: true })).map(item => structuredClone(item));
+    const withChat = out.filter(copy => copy.supportChatFile);
+    for (let i = 0; i < withChat.length; i += EXPORT_CHAT_BATCH) {
+        await Promise.all(withChat.slice(i, i + EXPORT_CHAT_BATCH).map(async copy => {
+            const chat = await loadSupportChat(copy, { strict: true });
             delete copy.supportChatFile;
             if (chat.length) copy.supportChat = chat;
-        }
-        out.push(copy);
+        }));
     }
     return out;
 }
