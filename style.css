@@ -247,8 +247,10 @@
     transition: background var(--pf-ease), color var(--pf-ease);
 }
 
-.persona-forge-popup .pf-mode-control button:hover {
-    color: var(--pf-fg) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-mode-control button:hover {
+        color: var(--pf-fg) !important;
+    }
 }
 
 .persona-forge-popup.pf-mode-bot {
@@ -285,9 +287,11 @@
     transition: background var(--pf-ease), color var(--pf-ease);
 }
 
-.persona-forge-popup .pf-icon-btn:hover {
-    background: var(--pf-soft2) !important;
-    color: var(--pf-fg) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-icon-btn:hover {
+        background: var(--pf-soft2) !important;
+        color: var(--pf-fg) !important;
+    }
 }
 
 .pf-more-wrap {
@@ -358,8 +362,10 @@
     color: color-mix(in srgb, var(--pf-danger) 70%, transparent);
 }
 
-.persona-forge-popup .pf-more-item:hover {
-    background: var(--pf-soft2) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-more-item:hover {
+        background: var(--pf-soft2) !important;
+    }
 }
 
 .persona-forge-popup .pf-more-item > i {
@@ -408,9 +414,11 @@
     transition: background var(--pf-ease), color var(--pf-ease);
 }
 
-.persona-forge-popup .pf-tab:hover {
-    background: var(--pf-soft) !important;
-    color: var(--pf-fg) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-tab:hover {
+        background: var(--pf-soft) !important;
+        color: var(--pf-fg) !important;
+    }
 }
 
 .persona-forge-popup .pf-tab.active {
@@ -508,8 +516,10 @@
     pointer-events: none;
 }
 
-.persona-forge-popup .pf-busy-banner:hover {
-    background: linear-gradient(var(--pf-action-soft2), var(--pf-action-soft2)), var(--pf-surface) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-busy-banner:hover {
+        background: linear-gradient(var(--pf-action-soft2), var(--pf-action-soft2)), var(--pf-surface) !important;
+    }
 }
 
 .pf-busy-dot {
@@ -739,8 +749,10 @@
     position: relative;
 }
 
-.pf-choice:hover .pf-choice-mark {
-    border-color: var(--pf-accent-line);
+@media (hover: hover) {
+    .pf-choice:hover .pf-choice-mark {
+        border-color: var(--pf-accent-line);
+    }
 }
 
 .pf-choice-mark {
@@ -808,9 +820,11 @@
     border-top: 1px solid var(--pf-line) !important;
 }
 
-.persona-forge-popup .pf-char-result:hover,
-.persona-forge-popup .pf-char-result-more:hover {
-    background: var(--pf-soft2) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-char-result:hover,
+    .persona-forge-popup .pf-char-result-more:hover {
+        background: var(--pf-soft2) !important;
+    }
 }
 
 .persona-forge-popup .pf-char-result.selected {
@@ -922,8 +936,10 @@
     background: linear-gradient(var(--pf-action-soft2), var(--pf-action-soft2)), var(--pf-surface) !important;
 }
 
-.persona-forge-popup .pf-primary-btn.pf-generate-btn:hover {
-    background: linear-gradient(color-mix(in srgb, var(--pf-mode-color) 36%, transparent), color-mix(in srgb, var(--pf-mode-color) 36%, transparent)), var(--pf-surface) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-primary-btn.pf-generate-btn:hover {
+        background: linear-gradient(color-mix(in srgb, var(--pf-mode-color) 36%, transparent), color-mix(in srgb, var(--pf-mode-color) 36%, transparent)), var(--pf-surface) !important;
+    }
 }
 
 .persona-forge-popup .pf-primary-btn.pf-generate-btn:disabled {
@@ -988,10 +1004,12 @@
     font-family: var(--pf-font) !important;
 }
 
-.persona-forge-popup .pf-select:hover,
-.persona-forge-popup .pf-input:hover,
-.persona-forge-popup .pf-textarea:hover {
-    border-color: var(--pf-line-strong) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-select:hover,
+    .persona-forge-popup .pf-input:hover,
+    .persona-forge-popup .pf-textarea:hover {
+        border-color: var(--pf-line-strong) !important;
+    }
 }
 
 .persona-forge-popup .pf-select:focus,
@@ -1014,6 +1032,12 @@
 
 .persona-forge-popup .pf-select-small {
     width: auto;
+}
+
+/* 테마가 체크박스·라디오에 주는 확대 효과는 막음 (대장간 컨트롤 모양은 테마보다 우선) */
+#persona-forge-popup input:is([type="checkbox"], [type="radio"]),
+.pf-dialog input:is([type="checkbox"], [type="radio"]) {
+    scale: none !important;
 }
 
 #persona-forge-popup input[type="checkbox"]:not(.pf-switch-input) {
@@ -1117,8 +1141,10 @@
     transition: background var(--pf-ease), border-color var(--pf-ease), color var(--pf-ease);
 }
 
-.persona-forge-popup .pf-btn:hover {
-    background: var(--pf-soft2) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-btn:hover {
+        background: var(--pf-soft2) !important;
+    }
 }
 
 .persona-forge-popup .pf-btn > i,
@@ -1134,8 +1160,10 @@
     color: var(--pf-action-text) !important;
 }
 
-.persona-forge-popup .pf-primary-btn:hover {
-    background: var(--pf-action-soft2) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-primary-btn:hover {
+        background: var(--pf-action-soft2) !important;
+    }
 }
 
 .persona-forge-popup .pf-primary-btn:disabled,
@@ -1158,8 +1186,10 @@
     color: var(--pf-action-text) !important;
 }
 
-.persona-forge-popup .pf-btn.pf-accent-btn:hover {
-    background: var(--pf-action-soft2) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-btn.pf-accent-btn:hover {
+        background: var(--pf-action-soft2) !important;
+    }
 }
 
 .persona-forge-popup .pf-btn.pf-danger-btn {
@@ -1168,8 +1198,10 @@
     color: var(--pf-danger) !important;
 }
 
-.persona-forge-popup .pf-btn.pf-danger-btn:hover {
-    background: color-mix(in srgb, var(--pf-danger) 18%, transparent) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-btn.pf-danger-btn:hover {
+        background: color-mix(in srgb, var(--pf-danger) 18%, transparent) !important;
+    }
 }
 
 .persona-forge-popup .pf-btn.pf-icon-only {
@@ -1207,11 +1239,13 @@
     transition: background var(--pf-ease), color var(--pf-ease);
 }
 
-.persona-forge-popup .pf-icon-btn-sm:hover,
-.persona-forge-popup .pf-section-regen-btn:hover,
-.persona-forge-popup .pf-section-edit-btn:hover {
-    background: var(--pf-soft2) !important;
-    color: var(--pf-fg) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-icon-btn-sm:hover,
+    .persona-forge-popup .pf-section-regen-btn:hover,
+    .persona-forge-popup .pf-section-edit-btn:hover {
+        background: var(--pf-soft2) !important;
+        color: var(--pf-fg) !important;
+    }
 }
 
 .persona-forge-popup .pf-icon-btn-sm:disabled,
@@ -1220,9 +1254,11 @@
     pointer-events: none;
 }
 
-.persona-forge-popup .pf-icon-btn-danger:hover {
-    background: var(--pf-danger-soft) !important;
-    color: var(--pf-danger) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-icon-btn-danger:hover {
+        background: var(--pf-danger-soft) !important;
+        color: var(--pf-danger) !important;
+    }
 }
 
 .pf-hint {
@@ -1245,6 +1281,7 @@
     color: var(--pf-muted);
 }
 
+/* ===== ⓘ 툴팁 — 동그란 아이콘, 테두리 또렷한 말풍선, 아이콘을 가리키는 화살표, 여러 문장은 점 목록 ===== */
 .pf-info {
     position: relative;
     display: inline-flex;
@@ -1254,11 +1291,17 @@
 
 .pf-info > summary {
     list-style: none;
-    display: inline-flex;
-    align-items: center;
-    padding: 2px;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 1.5em;
+    height: 1.5em;
+    margin: -.15em 0;
+    padding: 0;
+    border-radius: 50%;
     cursor: pointer;
     line-height: 1;
+    transition: background var(--pf-ease);
 }
 
 .pf-info > summary::-webkit-details-marker {
@@ -1266,39 +1309,110 @@
 }
 
 .persona-forge-popup .pf-info > summary > i {
-    font-size: .82em !important;
+    font-size: 1em !important;
     color: var(--pf-faint) !important;
     transition: color var(--pf-ease);
 }
 
-.persona-forge-popup .pf-info > summary:hover > i,
-.persona-forge-popup .pf-info[open] > summary > i {
-    color: var(--pf-accent) !important;
+.persona-forge-popup .pf-info[open] > summary {
+    background: var(--pf-action-soft);
 }
 
+.persona-forge-popup .pf-info[open] > summary > i {
+    color: var(--pf-action-text) !important;
+}
+
+@media (hover: hover) {
+    .persona-forge-popup .pf-info > summary:hover {
+        background: var(--pf-action-soft);
+    }
+
+    .persona-forge-popup .pf-info > summary:hover > i {
+        color: var(--pf-action-text) !important;
+    }
+}
+
+.pf-info > summary:focus-visible {
+    outline: 2px solid var(--pf-accent-line);
+    outline-offset: 1px;
+}
+
+/* 자리(left·위로 뒤집기·화살표 위치)는 info-tips.js가 열 때마다 맞춤 */
 .pf-info-bubble {
     position: absolute;
-    top: calc(100% + 6px);
-    left: -8px;
+    top: calc(100% + 8px);
+    left: -14px;
     z-index: 60;
     width: max-content;
-    max-width: min(290px, 70vw);
-    padding: 10px 12px;
-    background: var(--pf-surface);
-    backdrop-filter: blur(var(--pf-blur));
-    -webkit-backdrop-filter: blur(var(--pf-blur));
-    border: 1px solid var(--pf-line);
-    border-radius: 11px;
-    box-shadow: var(--pf-shadow);
+    max-width: min(320px, calc(100vw - 48px));
+    padding: 11px 13px;
+    background: var(--pf-surface-solid);
+    border: 1px solid var(--pf-line-strong);
+    border-radius: 12px;
+    box-shadow: 0 10px 28px color-mix(in srgb, var(--SmartThemeShadowColor, #000) 70%, transparent);
     color: var(--pf-fg);
-    font-size: .78rem;
-    font-size: max(12px, .8em);
+    font-size: max(12px, calc(var(--pf-fs) * var(--pf-ui-scale, 1) * .85));
     font-weight: 400;
-    line-height: 1.6;
+    line-height: 1.62;
     letter-spacing: 0;
     white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
     text-align: left;
     text-transform: none;
+    cursor: auto;
+    animation: pf-tip-in .12s ease-out;
+}
+
+.pf-info-bubble::before {
+    content: "";
+    position: absolute;
+    top: -6px;
+    left: var(--pf-arrow-x, 24px);
+    width: 10px;
+    height: 10px;
+    border-top: 1px solid var(--pf-line-strong);
+    border-left: 1px solid var(--pf-line-strong);
+    background: inherit;
+    transform: translateX(-50%) rotate(45deg);
+}
+
+.pf-info-bubble.pf-tip-above {
+    top: auto;
+    bottom: calc(100% + 8px);
+}
+
+.pf-info-bubble.pf-tip-above::before {
+    top: auto;
+    bottom: -6px;
+    border: 0;
+    border-right: 1px solid var(--pf-line-strong);
+    border-bottom: 1px solid var(--pf-line-strong);
+}
+
+.pf-info-bubble > ul {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 0;
+    padding: 0 0 0 1.05em;
+    list-style: disc;
+}
+
+.pf-info-bubble li {
+    margin: 0;
+    padding: 0;
+}
+
+.pf-info-bubble li::marker {
+    color: var(--pf-action-text);
+}
+
+@keyframes pf-tip-in {
+    from {
+        opacity: 0;
+        transform: translateY(-3px);
+    }
 }
 
 .pf-inline-label {
@@ -1335,8 +1449,10 @@
     cursor: pointer;
 }
 
-.persona-forge-popup .pf-disclosure-btn:hover {
-    color: var(--pf-fg) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-disclosure-btn:hover {
+        color: var(--pf-fg) !important;
+    }
 }
 
 .pf-disclosure-btn > i {
@@ -1374,8 +1490,10 @@
     cursor: pointer;
 }
 
-.pf-card-field:hover {
-    background: var(--pf-soft);
+@media (hover: hover) {
+    .pf-card-field:hover {
+        background: var(--pf-soft);
+    }
 }
 
 .pf-card-field-name {
@@ -1533,9 +1651,11 @@
     cursor: pointer;
 }
 
-.persona-forge-popup .pf-wi-other-toggle:hover {
-    background: var(--pf-soft) !important;
-    color: var(--pf-fg) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-wi-other-toggle:hover {
+        background: var(--pf-soft) !important;
+        color: var(--pf-fg) !important;
+    }
 }
 
 .pf-wi-empty {
@@ -1559,8 +1679,10 @@
     border-top: 1px solid var(--pf-line);
 }
 
-.pf-wi-entry:hover {
-    background: var(--pf-soft);
+@media (hover: hover) {
+    .pf-wi-entry:hover {
+        background: var(--pf-soft);
+    }
 }
 
 #persona-forge-popup .pf-wi-entry input[type="checkbox"] {
@@ -1699,8 +1821,10 @@
     border-top: 1px solid var(--pf-line);
 }
 
-.pf-custom-field-item:hover {
-    background: var(--pf-soft);
+@media (hover: hover) {
+    .pf-custom-field-item:hover {
+        background: var(--pf-soft);
+    }
 }
 
 .pf-field-item-main {
@@ -2416,8 +2540,10 @@
     transition: background var(--pf-ease), color var(--pf-ease);
 }
 
-.pf-pill:hover span {
-    color: var(--pf-fg);
+@media (hover: hover) {
+    .pf-pill:hover span {
+        color: var(--pf-fg);
+    }
 }
 
 .pf-pill input:checked + span {
@@ -2748,9 +2874,14 @@
     transition: box-shadow var(--pf-ease);
 }
 
-.pf-support-face-pick:hover .pf-support-avatar,
 .pf-support-face-pick:focus-visible .pf-support-avatar {
     box-shadow: 0 0 0 2px var(--pf-action-line);
+}
+
+@media (hover: hover) {
+    .pf-support-face-pick:hover .pf-support-avatar {
+        box-shadow: 0 0 0 2px var(--pf-action-line);
+    }
 }
 
 .pf-support-face .pf-support-avatar.pf-support-face-empty {
@@ -2843,8 +2974,10 @@
     cursor: pointer;
 }
 
-.persona-forge-popup .pf-support-more:hover {
-    color: var(--pf-fg) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-support-more:hover {
+        color: var(--pf-fg) !important;
+    }
 }
 
 .pf-support-more > i {
@@ -3079,9 +3212,11 @@
     cursor: pointer;
 }
 
-.persona-forge-popup .pf-support-edit-copy:hover {
-    background: var(--pf-soft2) !important;
-    color: var(--pf-fg) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-support-edit-copy:hover {
+        background: var(--pf-soft2) !important;
+        color: var(--pf-fg) !important;
+    }
 }
 
 .pf-support-edit-label {
@@ -3139,8 +3274,10 @@
     transform: rotate(90deg);
 }
 
-.pf-support-edit-original > summary:hover {
-    color: var(--pf-fg);
+@media (hover: hover) {
+    .pf-support-edit-original > summary:hover {
+        color: var(--pf-fg);
+    }
 }
 
 .pf-support-edit-old {
@@ -3165,8 +3302,10 @@
     color: var(--pf-action-text) !important;
 }
 
-.persona-forge-popup .pf-btn.pf-support-apply:hover {
-    background: var(--pf-action-soft2) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-btn.pf-support-apply:hover {
+        background: var(--pf-action-soft2) !important;
+    }
 }
 
 .pf-support-applied {
@@ -3186,8 +3325,10 @@
     transition: opacity var(--pf-ease);
 }
 
-.pf-support-msg:hover .pf-support-actions {
-    opacity: 1;
+@media (hover: hover) {
+    .pf-support-msg:hover .pf-support-actions {
+        opacity: 1;
+    }
 }
 
 .persona-forge-popup .pf-support-actions button {
@@ -3205,9 +3346,11 @@
     cursor: pointer;
 }
 
-.persona-forge-popup .pf-support-actions button:hover {
-    background: var(--pf-soft2) !important;
-    color: var(--pf-fg) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-support-actions button:hover {
+        background: var(--pf-soft2) !important;
+        color: var(--pf-fg) !important;
+    }
 }
 
 .persona-forge-popup .pf-support-actions button:disabled {
@@ -3379,8 +3522,10 @@
     border-top: 1px solid var(--pf-line);
 }
 
-.pf-history-item:hover {
-    background: var(--pf-soft);
+@media (hover: hover) {
+    .pf-history-item:hover {
+        background: var(--pf-soft);
+    }
 }
 
 .pf-list-icon {
@@ -3456,19 +3601,28 @@
     color: var(--pf-muted) !important;
 }
 
-.persona-forge-popup .pf-history-actions .pf-btn:hover {
-    background: var(--pf-soft2) !important;
-    color: var(--pf-fg) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-history-actions .pf-btn:hover {
+        background: var(--pf-soft2) !important;
+        color: var(--pf-fg) !important;
+    }
 }
 
-.persona-forge-popup .pf-history-actions .pf-btn.pf-danger-btn:hover {
-    background: var(--pf-danger-soft) !important;
-    color: var(--pf-danger) !important;
+@media (hover: hover) {
+    .persona-forge-popup .pf-history-actions .pf-btn.pf-danger-btn:hover {
+        background: var(--pf-danger-soft) !important;
+        color: var(--pf-danger) !important;
+    }
 }
 
-.persona-forge-popup .pf-history-actions .pf-history-fav.pf-on,
-.persona-forge-popup .pf-history-actions .pf-history-fav.pf-on:hover {
+.persona-forge-popup .pf-history-actions .pf-history-fav.pf-on {
     color: var(--pf-warning) !important;
+}
+
+@media (hover: hover) {
+    .persona-forge-popup .pf-history-actions .pf-history-fav.pf-on:hover {
+        color: var(--pf-warning) !important;
+    }
 }
 
 .pf-history-pager {

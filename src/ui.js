@@ -30,6 +30,7 @@ import {
     isBotMode, listPersonas, selectedPersonaId, getEffectiveField, getEffectiveSettingField, generateGreeting, setGreetingText, selectGreeting, translateGreeting, greetingPosition, greetingTexts, guessProfileName, countMainSections,
     modifyGreeting, sendSupportMessage, describeSupportMaterial, supporterName, applySupportEdit, canUndoSupportEdit, undoSupportEdit,
 } from './generator.js';
+import { bindInfoTips, closeInfoTips, closeInfoTipByEscape } from './info-tips.js';
 
 let isEditMode = false;
 
@@ -163,6 +164,7 @@ const UPDATE_HISTORY = [
     {
         version: '2.2.1',
         notes: [
+            "프롬프트 탭에서 추가 지침이 들어갈 위치로 '마지막 확인 뒤'도 고를 수 있습니다.",
             '기록 자동 저장을 꺼 두면, 이미 기록에 있는 결과를 고쳤을 때 반영이 안 되던 문제를 고쳤습니다.',
             "전체 편집이나 남매 변경안을 적용한 뒤에도 '잘림' 경고가 남던 문제를 고쳤습니다.",
             '모바일에서 결과 제목 옆의 참고·월드인포 표시를 아래 줄로 내렸습니다.',
@@ -302,6 +304,7 @@ export function bindUIEvents() {
     $(document).on('keydown', (e) => {
         if (e.key !== 'Escape' || !$('#persona-forge-popup').hasClass('open')) return;
         if (document.querySelector('dialog[open]')) return;
+        if (closeInfoTipByEscape($root[0])) return;
         closePopup();
     });
 
@@ -403,25 +406,15 @@ export function bindUIEvents() {
 
     $root.on('click', '#pf-more-btn', (e) => {
         e.stopPropagation();
-        $('.pf-info[open]').removeAttr('open');
+        closeInfoTips($root[0]);
         toggleMoreMenu();
     });
     $root.on('click', '.pf-more-item', onMoreMenuAction);
 
-    // 툴팁(ⓘ)은 하나만 열리게
-    // 직접 열고 닫아서, 그려지기 전에 창 안쪽으로 위치를 맞춤 (열린 뒤 옮기면 한 번 튀어 보임)
-    $root.on('click', '.pf-info > summary', function (e) {
-        e.preventDefault();
-        const info = this.parentElement;
-        const willOpen = !info.open;
-        $('.pf-info[open]').not(info).removeAttr('open');
-        info.open = willOpen;
-        if (willOpen) positionInfoBubble(info);
-    });
+    bindInfoTips($root[0]);
 
     $root.on('click', (e) => {
         if (!$(e.target).closest('.pf-more-wrap').length) closeMoreMenu();
-        if (!$(e.target).closest('.pf-info').length) $('.pf-info[open]').removeAttr('open');
     });
 
     $root.on('change', '#pf-wi-toggle', onWorldInfoToggle);
@@ -770,25 +763,6 @@ export function bindUIEvents() {
     $root.on('click', '.pf-field-move-btn', onFieldMove);
 
     log('UI events bound');
-}
-
-function positionInfoBubble(info) {
-    if (!info?.open) return;
-    const container = document.querySelector('#persona-forge-popup .pf-container');
-    if (!container) return;
-    const bounds = container.getBoundingClientRect();
-    const margin = 12;
-    for (const bubble of info.querySelectorAll('.pf-info-bubble')) {
-        bubble.style.left = '';
-        bubble.style.maxWidth = `${Math.min(340, Math.max(160, bounds.width - margin * 2))}px`;
-        const rect = bubble.getBoundingClientRect();
-        if (!rect.width) continue; // 지금 모드에서 숨은 말풍선
-        const baseLeft = parseFloat(getComputedStyle(bubble).left) || 0;
-        let shift = 0;
-        if (rect.right > bounds.right - margin) shift = (bounds.right - margin) - rect.right;
-        if (rect.left + shift < bounds.left + margin) shift = (bounds.left + margin) - rect.left;
-        if (shift) bubble.style.left = `${baseLeft + shift}px`;
-    }
 }
 
 export function openPopup() {

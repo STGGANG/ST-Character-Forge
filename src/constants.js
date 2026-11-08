@@ -7,7 +7,7 @@ export const EXTENSION_VERSION = '2.2.1';
 export const FONT_SCALES = {
     small: { label: '작게', ui: 0.93, chat: 0.92 },
     medium: { label: '보통', ui: 1, chat: 1 },
-    large: { label: '크게', ui: 1.08, chat: 1.15 },
+    large: { label: '크게', ui: 1.12, chat: 1.15 },
 };
 
 function detectExtensionPath() {
@@ -67,6 +67,7 @@ export const GUIDELINE_PLACEMENTS = {
     craft: { label: '시스템 · 작성 기준 끝 (분량 뒤)' },
     afterUser: { label: '시스템 · 컨셉 뒤, NSFW 지침 앞' },
     beforeFormat: { label: '시스템 · NSFW 지침 뒤, 출력 형식 앞' },
+    afterFinal: { label: '사용자 메시지 · 마지막 확인 뒤 (맨 끝)' },
 };
 
 export const GENERATION_MODES = {

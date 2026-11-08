@@ -477,7 +477,7 @@ function matureContentBlock(scope) {
 // [시스템] NSFW 지침(켰을 때) → 출력 형식(세계관 설정·템플릿 서식 포함)
 // [사용자] 마지막 확인 ("지금 써라…") — 요청은 사용자 메시지로 끝나야 해서 (API 규칙, 컨셉이 없을 때도 사용자 메시지가 있게)
 // 시스템 메시지를 맨 앞 하나만 받는 API는 실리태번이 뒤쪽 시스템 메시지를 사용자 쪽으로 합쳐 보냄
-// mode(persona/bot)는 NSFW 지침의 탭, guidelines를 켜면 추가 지침을 프롬프트 탭에서 고른 자리에 (기본: 사용자 메시지 끝)
+// mode(persona/bot)는 NSFW 지침의 탭, guidelines를 켜면 추가 지침을 프롬프트 탭에서 고른 자리에 (기본: 사용자 메시지 끝, 마지막 확인 뒤도 고를 수 있음)
 // matureNote: NSFW 지침이 들어갈 때 바로 뒤에 붙일 줄 (번역용)
 function requestMessages({ system, user = [], format = [], final, mode, guidelines: withGuidelines = false, matureNote = '' }) {
     const guidelines = withGuidelines ? userGuidelinesBlock(mode) : '';
@@ -489,9 +489,10 @@ function requestMessages({ system, user = [], format = [], final, mode, guidelin
     const mature = matureContentBlock(mode);
     const formatText = [at('afterUser'), mature, mature && matureNote, at('beforeFormat'), ...format].filter(Boolean).join('\n\n');
     if (formatText) messages.push({ role: 'system', content: formatText });
+    const finalText = [final, at('afterFinal')].filter(Boolean).join('\n\n');
     // 사이에 시스템 메시지가 없으면 사용자 메시지 하나로 (사용자 메시지가 연달아 가지 않게)
-    if (!formatText && userText) messages.at(-1).content += `\n\n${final}`;
-    else messages.push({ role: 'user', content: final });
+    if (!formatText && userText) messages.at(-1).content += `\n\n${finalText}`;
+    else messages.push({ role: 'user', content: finalText });
     return messages;
 }
 
@@ -1589,7 +1590,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
     const addGuidelines = (place) => {
         if (place !== guidelinesPlace) return;
         const guidelines = getPrompt(isBot ? 'botGuidelines' : 'guidelines');
-        add(place === 'user' ? 'user' : 'system', `추가 지침 (${isBot ? '봇' : '페르소나'})`, isBot ? 'botGuidelines' : 'guidelines',
+        add(place === 'user' || place === 'afterFinal' ? 'user' : 'system', `추가 지침 (${isBot ? '봇' : '페르소나'})`, isBot ? 'botGuidelines' : 'guidelines',
             `<user_guidelines> — 기본 지시보다 우선 · 위치: ${GUIDELINE_PLACEMENTS[place].label}`, !!guidelines, '작성하지 않음');
     };
     // NSFW 지침 — 켰을 때만
@@ -1733,7 +1734,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
     }
     addGuidelines('user');
 
-    // (추가 지침) → NSFW → (추가 지침) → 출력 형식 (시스템) / 마지막 확인 (사용자)
+    // (추가 지침) → NSFW → (추가 지침) → 출력 형식 (시스템) / 마지막 확인 → (추가 지침) (사용자)
     addGuidelines('afterUser');
     addMature();
     addGuidelines('beforeFormat');
@@ -1758,10 +1759,12 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
             add('system', '템플릿 서식 규칙', 'templateFormat', '<output_format> 안 — 섹션 안 서식 (Format:)', has('templateFormat', scope), '비어 있음');
         }
         add('user', '마지막 확인', false, '언어·섹션 수·첫 헤더를 한 줄로 다시 확인');
+        addGuidelines('afterFinal');
         return items;
     }
     add('system', '출력 형식', false, '<output_format> — 언어, 기존 서식 유지');
     add('user', '마지막 확인', false, '출력할 범위와 언어를 한 줄로 다시 확인');
+    addGuidelines('afterFinal');
     return items;
 }
 
