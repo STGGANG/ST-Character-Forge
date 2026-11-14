@@ -554,8 +554,6 @@
                             <span id="pf-result-char-name" class="pf-result-char"></span>
                         </div>
                         <div class="pf-result-actions">
-                            <button id="pf-record-rename-btn" class="pf-btn pf-small-btn" type="button" title="기록 이름 바꾸기"><i
-                                    class="fa-solid fa-tag"></i></button>
                             <button id="pf-edit-toggle-btn" class="pf-btn pf-small-btn" title="프로필 전체를 글로 편집">
                                 <i class="fa-solid fa-pen"></i> 전체 편집
                             </button>
@@ -576,6 +574,8 @@
                             title="프로필 토큰 수 (그리팅 제외, 실리태번 토크나이저 기준) · 만든 AI 모델"></span>
                     </div>
 
+                    <div id="pf-view-bar" class="pf-view-bar" style="display: none;"></div>
+
                     <details id="pf-result-concept" class="pf-result-concept" style="display: none;">
                         <summary>
                             <i class="fa-solid fa-feather-pointed"></i>
@@ -595,6 +595,19 @@
                     </div>
 
                     <div id="pf-translate-panel" class="pf-inline-panel" style="display: none;">
+                        <div class="pf-translate-row pf-translate-target-row">
+                            <span class="pf-inline-label">
+                                번역 결과
+                                <details class="pf-info">
+                                    <summary aria-label="설명"><i class="fa-solid fa-circle-info"></i></summary>
+                                    <div class="pf-info-bubble"><ul><li>새 기록으로: 지금 결과를 번역하여 별도 기록으로 저장합니다. 원래 기록은 그대로입니다.</li><li>이 기록에 붙이기: 번역본을 지금 결과에서 바꿔 보는 읽기 전용으로 붙입니다. 같은 언어로 다시 번역하면 덮어씁니다.</li><li>이 기록에 붙인 번역은 AI에게 보내지 않습니다. 복사·카드 저장은 지금 화면에서 보고 있는 글로 합니다.</li></ul></div>
+                                </details>
+                            </span>
+                            <span class="pf-pill-group" role="radiogroup" aria-label="번역 결과">
+                                <label class="pf-pill"><input type="radio" name="pf-translate-target" value="new"><span>새 기록으로</span></label>
+                                <label class="pf-pill"><input type="radio" name="pf-translate-target" value="attach"><span>이 기록에 붙이기</span></label>
+                            </span>
+                        </div>
                         <div class="pf-translate-row">
                             <span class="pf-inline-label">
                                 번역 대상 언어
@@ -691,6 +704,14 @@
                                             value="third"><span>전지적 3인칭</span></label>
                                     <label class="pf-pill"><input type="radio" name="pf-greeting-pov"
                                             value="second"><span>2인칭 ({{user}} = 당신)</span></label>
+                                </div>
+                            </div>
+                            <div class="pf-option-row">
+                                <span class="pf-option-label">시제</span>
+                                <div class="pf-pill-group">
+                                    <label class="pf-pill"><input type="radio" name="pf-greeting-tense" value="auto"><span>자동</span></label>
+                                    <label class="pf-pill"><input type="radio" name="pf-greeting-tense" value="present"><span>현재형</span></label>
+                                    <label class="pf-pill"><input type="radio" name="pf-greeting-tense" value="past"><span>과거형</span></label>
                                 </div>
                             </div>
                             <div class="pf-option-row">

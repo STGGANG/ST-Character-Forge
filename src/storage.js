@@ -1,7 +1,7 @@
 import { extension_settings } from "../../../../extensions.js";
 import { saveSettingsDebounced } from "../../../../../script.js";
-import { extensionName, defaultSettings, CARD_FIELDS, LANGUAGES, RESETTABLE_SETTING_KEYS, DENSITY_LEVELS, SETTING_FIELDS, SUPPORTER_FACES, FONT_SCALES, GUIDELINE_PLACEMENTS } from './constants.js';
-import { PROMPT_SLOTS, LEGACY_PROMPT_KEYS } from './prompt-defaults.js';
+import { extensionName, defaultSettings, CARD_FIELDS, LANGUAGES, RESETTABLE_SETTING_KEYS, DENSITY_LEVELS, SETTING_FIELDS, SUPPORTER_FACES, FONT_SCALES, GUIDELINE_PLACEMENTS, GREETING_TENSES } from './constants.js';
+import { PROMPT_SLOTS, LEGACY_PROMPT_KEYS, SUPPORTER_FORMAT_UPDATES } from './prompt-defaults.js';
 import { state, log } from './state.js';
 
 export function loadSettings() {
@@ -63,6 +63,8 @@ function migrateSettings(settings) {
     }
     if (!DENSITY_LEVELS[settings.density]) settings.density = 'default';
     if (!FONT_SCALES[settings.uiFontSize]) settings.uiFontSize = 'medium';
+    if (!['new', 'attach'].includes(settings.translateTarget)) settings.translateTarget = 'new';
+    if (!GREETING_TENSES[settings.greetingTense]) settings.greetingTense = 'auto';
     if (!FONT_SCALES[settings.chatFontSize]) settings.chatFontSize = 'medium';
     if (!['pretendard', 'theme'].includes(settings.uiFontFamily)) settings.uiFontFamily = 'pretendard';
     if (!Number.isInteger(settings.hammerTaps) || settings.hammerTaps < 0) settings.hammerTaps = 0;
@@ -122,6 +124,14 @@ function migrateSettings(settings) {
     const knownRules = new Set(settings.legacyPrompts.map(set => JSON.stringify(set.prompts)));
     const freshRules = oldRules.filter(set => !knownRules.has(JSON.stringify(set.prompts)));
     if (freshRules.length) settings.legacyPrompts.push(...freshRules);
+
+    // 직접 고친 서포터 응답 형식에 남은 예전 기본 문장 → 지금 문장 (변경안을 바뀌는 문장만 옮기는 방식으로)
+    const updateSupporterFormat = prompts => {
+        if (typeof prompts?.supporterFormat !== 'string') return;
+        prompts.supporterFormat = SUPPORTER_FORMAT_UPDATES.reduce((text, [old, next]) => text.replace(old, next), prompts.supporterFormat);
+    };
+    updateSupporterFormat(settings.customPrompts);
+    for (const preset of settings.promptPresets) updateSupporterFormat(preset.prompts);
 
     // 여러 탭에 있는 칸의 수정본은 탭마다 따로 — 예전 한 칸짜리 수정본은 그 칸을 쓰는 탭마다 복사
     splitScopedPrompts(settings.customPrompts);

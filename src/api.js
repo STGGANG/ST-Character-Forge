@@ -229,6 +229,29 @@ async function findProxy(name) {
 
 const TRUNCATION_REASONS = ['length', 'max_tokens', 'MAX_TOKENS', 'model_length'];
 
+// API가 알려 준 멈춘 이유 (OpenAI 호환·Claude·Gemini·Cohere 형식) — 없으면 ''
+export function stopReasonOf(parsed) {
+    const reason = parsed?.choices?.[0]?.finish_reason ?? parsed?.candidates?.[0]?.finishReason
+        ?? parsed?.delta?.stop_reason ?? parsed?.delta?.finish_reason ?? parsed?.stop_reason ?? parsed?.finish_reason;
+    return typeof reason === 'string' ? reason : '';
+}
+
+const NORMAL_STOPS = new Set(['stop', 'end_turn', 'stop_sequence', 'eos', 'eos_token', 'complete', 'tool_calls', 'function_call', 'finish_reason_unspecified']);
+const STOP_REASON_TEXT = [
+    [TRUNCATION_REASONS, '출력 한도에 닿음'],
+    [['RECITATION'], '이미 있는 글을 그대로 옮겨 쓴다고 판단함'],
+    [['SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST', 'SPII', 'IMAGE_SAFETY', 'content_filter'], 'AI 쪽 안전 필터'],
+    [['refusal'], '모델이 거절함'],
+];
+
+// 정상 종료가 아니면 화면에 보일 설명 (정상이거나 이유가 없으면 '')
+export function describeStopReason(reason) {
+    const value = String(reason || '').trim();
+    if (!value || NORMAL_STOPS.has(value.toLowerCase())) return '';
+    const known = STOP_REASON_TEXT.find(([reasons]) => reasons.includes(value));
+    return known ? `${known[1]} (${value})` : `알 수 없는 이유 (${value})`;
+}
+
 // 스트리밍 조각에 "출력 한도로 멈춤" 표시가 있는지
 // (OpenAI 호환: finish_reason / Claude: message_delta의 stop_reason / Gemini: finishReason / Cohere: finish_reason)
 function isStreamTruncation(parsed) {
@@ -284,6 +307,7 @@ async function streamChatCompletion(context, payload, signal) {
     const replyState = { reasoning: '', images: [], signature: '', toolSignatures: {} };
     let text = '';
     let truncated = false;
+    let stopReason = '';
     let model = '';
     let gaps = 0; // 읽지 못한 응답 조각 (그 자리의 글이 빠짐)
 
@@ -304,6 +328,7 @@ async function streamChatCompletion(context, payload, signal) {
         }
         if (parsed?.error) throw new Error(streamErrorMessage(raw, response.status));
         if (isStreamTruncation(parsed)) truncated = true;
+        stopReason = stopReasonOf(parsed) || stopReason;
         model ||= responseModel(parsed);
         if (Array.isArray(parsed?.choices) && parsed.choices[0]?.index > 0) continue; // 여러 개를 요청한 경우의 나머지
         // 추론(thinking) 내용은 결과에 넣지 않고, 진행 표시에만 씀 (생각하는 동안 멈춘 것처럼 보이지 않게)
@@ -315,7 +340,7 @@ async function streamChatCompletion(context, payload, signal) {
         state.progressListener?.(text.length, replyState.reasoning.length);
     }
     if (gaps) log(`Stream: ${gaps} chunk(s) could not be parsed`);
-    return { text, truncated, model, gaps, reasoningChars: replyState.reasoning.length };
+    return { text, truncated, stopReason, model, gaps, reasoningChars: replyState.reasoning.length };
 }
 
 // 실리태번 1.15 전에는 presetToGeneratePayload가 넘긴 메시지·연결 정보를 버리고 샘플러 값만 돌려줌 → 예전 방식으로 보냄
@@ -404,7 +429,7 @@ async function sendChatCompletion(context, target, messages, signal) {
     }
 
     const raw = await service.sendRequest(payload, false, signal);
-    return { text: await extractText(raw, 'openai'), truncated: detectTruncation(raw), model: responseModel(raw) };
+    return { text: await extractText(raw, 'openai'), truncated: detectTruncation(raw), stopReason: stopReasonOf(raw), model: responseModel(raw) };
 }
 
 async function sendTextCompletion(context, target, messages, signal) {

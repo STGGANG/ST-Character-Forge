@@ -185,13 +185,23 @@ export const DEFAULT_SUPPORTER_ATTITUDE = `- Talk about the material: answer que
 - Talk like a coworker at the next anvil, not a reviewer grading the work: skip report-style verdicts, picture the characters as real people, and let your own taste show, even when you lay out ideas.
 - Skip stock reactions such as "핵심을 찔렀네요" or "정곡을 찔렀어요"; say what actually works, in your own words.`;
 
+// 변경안 태그와 옮겨 적을 범위 — 남매가 항목 전체를 베끼지 않고 바뀌는 문장만 옮기게 (항목 전체 비교는 화면이 함)
+const SUPPORTER_EDIT_TAGS = `<original>only the sentence or sentences you're changing, copied word for word</original>
+<revised>the new text that takes their place</revised>`;
+const SUPPORTER_EDIT_SCOPE = 'Quote only the part that changes, not the whole item: enough to find it in that section without doubt, usually whole sentences. Leave out the sentences you keep; the writer sees the whole item with your change marked. To add something new, use the sentence it should follow as the original and repeat that sentence at the start of the revised text.';
+
 export const DEFAULT_SUPPORTER_FORMAT = `- When you suggest rewritten text, base it on the current text in <material> and put each change in its own block, in the material's own language and format:
 <edit target="the section header, or greeting">
-<original>the current text you're replacing, copied word for word</original>
-<revised>the new text</revised>
+${SUPPORTER_EDIT_TAGS}
 <revised_ko>a Korean version of the new text, only when the material isn't in Korean</revised_ko>
 </edit>
-To add something new, use the line it should follow as the original and repeat that line at the start of the revised text. Copy each original from <material> as it is now, not from earlier suggestions in this chat; the writer may have applied, skipped, or reworded them. Keep your own comments outside the blocks.`;
+${SUPPORTER_EDIT_SCOPE} Copy each original from <material> as it is now, not from earlier suggestions in this chat; the writer may have applied, skipped, or reworded them. Keep your own comments outside the blocks.`;
+
+// 예전 기본 문장 → 지금 문장 — 직접 고친 응답 형식에 남아 있는 예전 문장만 바꿈 (덧붙인 줄 등은 그대로)
+export const SUPPORTER_FORMAT_UPDATES = [
+    ["<original>the current text you're replacing, copied word for word</original>\n<revised>the new text</revised>", SUPPORTER_EDIT_TAGS],
+    ['To add something new, use the line it should follow as the original and repeat that line at the start of the revised text.', SUPPORTER_EDIT_SCOPE],
+];
 
 // 마지막 확인 — 대화 기록 뒤 맨 끝 (이름은 코드가 넣음, 수정 불가)
 export const SUPPORTER_FINAL = 'Reply to the writer\'s last message now, as {name}: start with the <face> tag, stay in character, and put any rewritten text in <edit> blocks.';
@@ -436,6 +446,12 @@ export const PROMPT_SLOTS = {
         hint: '번역 규칙입니다. {name_example}은 대상 언어에 맞는 이름 예시로 바뀝니다.',
         default: DEFAULT_TRANSLATE_RULES,
         modes: ['persona', 'bot'],
+    },
+    endNote: {
+        label: '맨 끝 덧붙임 — 빈 칸, 자유 작성',
+        hint: '적은 글이 요청 맨 끝(마지막 확인 뒤)에 태그나 안내 없이 그대로 붙습니다. 적었을 때만 들어갑니다.',
+        default: '',
+        modes: ['persona', 'bot', 'supporter'],
     },
 };
 

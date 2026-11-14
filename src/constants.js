@@ -1,7 +1,7 @@
 export const extensionName = "persona-forge";
 
 // manifest.json의 version과 같게 — 바뀌면 설치·업데이트 후 한 번 안내 창을 띄움
-export const EXTENSION_VERSION = '2.2.1';
+export const EXTENSION_VERSION = '2.3.0';
 
 // 글자 크기 — 대장간 창 전체(ui)와 모루 남매 대화(chat) 배율
 export const FONT_SCALES = {
@@ -54,6 +54,13 @@ export const GREETING_POVS = {
     second: { label: '2인칭 ({{user}} = 당신)' },
 };
 
+// 그리팅 서술 시제 — 자동은 따로 정하지 않음 (프로필·참고 자료에 맞춰 모델이 고름)
+export const GREETING_TENSES = {
+    auto: { label: '자동' },
+    present: { label: '현재형', prompt: 'Present tense for the narration ("she looks up", not "she looked up"). Dialogue uses whatever tense fits what is said.' },
+    past: { label: '과거형', prompt: 'Past tense for the narration ("she looked up", not "she looks up"). Dialogue uses whatever tense fits what is said.' },
+};
+
 export const DENSITY_LEVELS = {
     default: { label: '기본형', desc: '분량을 따로 조절하지 않습니다', slot: '' },
     detailed: { label: '상세형', desc: '항목마다 필요한 만큼 자세하게, 형용사 나열보다 완전한 문장으로', slot: 'densityDetailed' },
@@ -67,7 +74,6 @@ export const GUIDELINE_PLACEMENTS = {
     craft: { label: '시스템 · 작성 기준 끝 (분량 뒤)' },
     afterUser: { label: '시스템 · 컨셉 뒤, NSFW 지침 앞' },
     beforeFormat: { label: '시스템 · NSFW 지침 뒤, 출력 형식 앞' },
-    afterFinal: { label: '사용자 메시지 · 마지막 확인 뒤 (맨 끝)' },
 };
 
 export const GENERATION_MODES = {
@@ -278,6 +284,7 @@ export const defaultSettings = {
     greetingLength: 'medium',
     greetingLengthCustom: '',
     greetingPov: 'third',
+    greetingTense: 'auto',
 
     density: 'default',
 
@@ -320,6 +327,8 @@ export const defaultSettings = {
 
     // 스트리밍으로 받기 (Chat Completion) — 오래 걸리는 생성이 중계 서버 시간 초과로 끊기는 것을 막음
     streamRequests: false,
+    translateTarget: 'new', // 번역 결과를 새 기록으로(new) 또는 지금 기록에 붙여 읽기 전용으로(attach)
+    compareWindow: null, // 비교 창 위치·크기 (넓은 화면)
 
     includeWorldInfo: false,
 
@@ -387,9 +396,9 @@ export const HAMMER_TITLES = [
 export const MANUAL_PERSONA_ID = '__manual__';
 
 export const RESETTABLE_SETTING_KEYS = [
-    'forgeMode', 'botDirection', 'botPersona', 'personaBase', 'greetingLength', 'greetingLengthCustom', 'greetingPov', 'density',
+    'forgeMode', 'botDirection', 'botPersona', 'personaBase', 'greetingLength', 'greetingLengthCustom', 'greetingPov', 'greetingTense', 'density',
     'generationMode', 'templatePreset', 'customFields', 'language', 'connectionProfile', 'maxTokens',
-    'includeWorldInfo', 'includeSetting', 'includeCharacter', 'settingFields', 'supporterProfile', 'supporterGender', 'supporterUserName', 'supporterUserGender', 'supporterUserIntro', 'uiFontSize', 'chatFontSize', 'uiFontFamily', 'cardFields', 'autoSaveHistory', 'completionSound', 'spoilerProtection', 'unfamiliarSource', 'matureContent', 'streamRequests',
+    'includeWorldInfo', 'includeSetting', 'includeCharacter', 'settingFields', 'supporterProfile', 'supporterGender', 'supporterUserName', 'supporterUserGender', 'supporterUserIntro', 'uiFontSize', 'chatFontSize', 'uiFontFamily', 'cardFields', 'autoSaveHistory', 'completionSound', 'spoilerProtection', 'unfamiliarSource', 'matureContent', 'streamRequests', 'translateTarget',
 ];
 
 // 대화형 서포터 표정 — 모델이 답마다 <face>로 고름 (이미지가 없는 표정은 기본 표정으로)

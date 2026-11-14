@@ -1,6 +1,6 @@
 ST-Character-Forge
 
-버전 2.2.1
+버전 2.3.0
 
 ---
 

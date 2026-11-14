@@ -3,7 +3,7 @@ import { saveSettingsDebounced } from "../../../../../script.js";
 import {
     extensionName, extensionFolderPath,
     PROFILE_FIELDS, TEMPLATE_PRESETS, LANGUAGES, CARD_FIELDS, HISTORY_FILE_NAME, RESETTABLE_SETTING_KEYS,
-    BOT_DIRECTIONS, GREETING_LENGTHS, GREETING_POVS, MIRROR_TEMPLATE, FORGE_RANKS, DENSITY_LEVELS, SETTING_FIELDS, MANUAL_PERSONA_ID,
+    BOT_DIRECTIONS, GREETING_LENGTHS, GREETING_POVS, GREETING_TENSES, MIRROR_TEMPLATE, FORGE_RANKS, DENSITY_LEVELS, SETTING_FIELDS, MANUAL_PERSONA_ID,
     SUPPORTER_AVATARS, SUPPORTER_FACES, HISTORY_LIMIT, HISTORY_WARN_AT, EXTENSION_VERSION, FONT_SCALES, HAMMER_TITLES, GUIDELINE_PLACEMENTS,
 } from './constants.js';
 import { PROMPT_SLOTS } from './prompt-defaults.js';
@@ -17,7 +17,7 @@ import {
     listHistory, addHistory, updateHistory, duplicateHistory, deleteHistory, deleteHistoryItems, clearHistory, importHistory, getHistoryBackend,
     takeEvictedCount, loadSupportChat, saveSupportChat, exportHistoryItems, clearAllSupportChats,
 } from './history-store.js';
-import { getConnectionProfiles, describeConnection, testConnection } from './api.js';
+import { getConnectionProfiles, describeConnection, testConnection, describeStopReason } from './api.js';
 import {
     WI_SOURCES, MANUAL_CHARACTER_KEY, NO_CHARACTER_KEY, getCharacterKey, readCharacterWorldInfo, loadBookEntries,
     storeBookSelected, storeEntrySelected, getSelectedEntries,
@@ -28,9 +28,13 @@ import {
     makeManualCharacter, headerLabel, getCardFieldTexts, tidyTitleLines, keepsOwnTitle,
     guessIconForHeader, parseResponse, rebuildFullText, getSectionBody, setSectionBody,
     isBotMode, listPersonas, selectedPersonaId, getEffectiveField, getEffectiveSettingField, generateGreeting, setGreetingText, selectGreeting, translateGreeting, greetingPosition, greetingTexts, guessProfileName, countMainSections,
-    modifyGreeting, sendSupportMessage, describeSupportMaterial, supporterName, applySupportEdit, canUndoSupportEdit, undoSupportEdit,
+    modifyGreeting, sendSupportMessage, describeSupportMaterial, supporterName, applySupportEdit, canUndoSupportEdit, undoSupportEdit, supportEditContext,
+    shownProfile, textSignature,
 } from './generator.js';
+import { splitSupportText, hasCutEdit } from './support-edits.js';
 import { bindInfoTips, closeInfoTips, closeInfoTipByEscape } from './info-tips.js';
+import { bindCompareView, openCompare, compareHandlesEscape } from './compare-view.js';
+import { makeSortable } from './field-sort.js';
 
 let isEditMode = false;
 
@@ -162,9 +166,37 @@ function isImeComposing(e) {
 // 항목은 글 한 줄, 또는 { text, sub } (sub: 그 아래 작게 덧붙이는 설명)
 const UPDATE_HISTORY = [
     {
+        version: '2.3.0',
+        groups: [
+            {
+                title: 'UI',
+                notes: [
+                    '기록 탭의 자리 낭비를 줄이고 보기 좋게 다듬었습니다.',
+                    '봇/페르소나 Choice 목록의 자리 낭비를 줄이고 보기 좋게 다듬었습니다.',
+                ],
+            },
+            {
+                title: '기능',
+                notes: [
+                    "프롬프트 탭에 새 지침 '맨 끝 덧붙임' 칸을 만들었습니다. 적은 글이 요청 맨 끝에 그대로 붙습니다.",
+                    "번역할 때 '새 기록으로'와 '이 기록에 붙이기'를 고를 수 있습니다. '이 기록에 붙이기'는 현재 기록에서 원본과 전환하며 보는 읽기 전용입니다.",
+                    '그리팅 시제(자동, 현재형, 과거형)를 고를 수 있습니다.',
+                    "기존 기록을 별도의 창에 띄울 수 있습니다. 두 가지 기록을 비교하며 볼 때 좋습니다. 넓은 화면에서는 옮길 수 있는 별도의 팝업 창으로 띄우고, 모바일에서는 '비교' 버튼을 눌러 여닫을 수 있습니다.",
+                ],
+            },
+            {
+                title: '보완',
+                notes: [
+                    '모루 남매의 수정 카드 제안이 끊기는 문제를 보완했습니다.',
+                    '모루 남매 대화 입력칸에서 글자를 칠 때 생기던 렉을 줄였습니다.',
+                    '자동 저장을 끈 상태에서 번역하면, 원래 기록이 번역본으로 덮일 수 있던 문제를 고쳤습니다.',
+                ],
+            },
+        ],
+    },
+    {
         version: '2.2.1',
         notes: [
-            "프롬프트 탭에서 추가 지침이 들어갈 위치로 '마지막 확인 뒤'도 고를 수 있습니다.",
             '기록 자동 저장을 꺼 두면, 이미 기록에 있는 결과를 고쳤을 때 반영이 안 되던 문제를 고쳤습니다.',
             "전체 편집이나 남매 변경안을 적용한 뒤에도 '잘림' 경고가 남던 문제를 고쳤습니다.",
             '모바일에서 결과 제목 옆의 참고·월드인포 표시를 아래 줄로 내렸습니다.',
@@ -224,11 +256,17 @@ const UPDATE_HISTORY = [
     },
 ];
 
-function updateNotesHtml(notes) {
-    return `<ul>${notes.map(note => {
+function updateNotesHtml(notes, tag = 'ul') {
+    return `<${tag}>${notes.map(note => {
         const { text, sub } = typeof note === 'string' ? { text: note } : note;
         return `<li>${escapeHtml(text)}${sub ? `<span class="pf-update-sub">${escapeHtml(sub)}</span>` : ''}</li>`;
-    }).join('')}</ul>`;
+    }).join('')}</${tag}>`;
+}
+
+// 한 버전의 내역 — 분류(groups)가 있으면 [분류] 제목 아래 번호 목록
+function updateEntryHtml(entry) {
+    if (!entry.groups) return updateNotesHtml(entry.notes);
+    return entry.groups.map(group => `<h5 class="pf-update-group">[${escapeHtml(group.title)}]</h5>${updateNotesHtml(group.notes, 'ol')}`).join('');
 }
 
 function updateHistoryHtml() {
@@ -236,9 +274,9 @@ function updateHistoryHtml() {
     const olderHtml = older.length ? `
         <details class="pf-update-older">
             <summary>이전 업데이트 (${older.at(-1).version}~${older[0].version})</summary>
-            ${older.map(entry => `<h4>[${entry.version}]</h4>${updateNotesHtml(entry.notes)}`).join('')}
+            ${older.map(entry => `<h4>[${entry.version}]</h4>${updateEntryHtml(entry)}`).join('')}
         </details>` : '';
-    return `<h3>업데이트 내역</h3><h4>[${latest.version}]</h4>${updateNotesHtml(latest.notes)}${olderHtml}`;
+    return `<h3>업데이트 내역</h3><h4>[${latest.version}]</h4>${updateEntryHtml(latest)}${olderHtml}`;
 }
 
 // 쌍둥이 기본 이미지 (직접 올린 이미지가 있으면 그것)
@@ -271,8 +309,8 @@ function showUpdateNoticeOnce({ force = false } = {}) {
                     <span class="pf-update-version">v${EXTENSION_VERSION}</span>
                 </div>
                 <div class="pf-update-body">
-                    ${line('female', 'smile', '이번엔 자잘한 손질이에요. 불편하던 데 몇 군데 고쳤어요.')}
-                    ${line('male', 'smile', '늘 대장간 찾아 줘서 고마워요! 오늘도 좋은 인물 하나 벼려 봐요.')}
+                    ${line('female', 'smile', '이번엔 꽤 많이 손봤어요! 번역은 기록에 붙여 두고 바꿔 볼 수 있고, 다른 기록을 옆에 띄워 비교할 수도 있어요.')}
+                    ${line('male', 'shy', '제 수정 카드가 중간에 뚝 끊기던 것도 고쳤어요. 이제 바뀌는 문장만 짧게 드릴게요.')}
                     <div class="pf-update-notes">${updateHistoryHtml()}</div>
                 </div>
                 <button type="button" class="pf-primary-btn pf-update-ok">확인</button>
@@ -305,6 +343,8 @@ export function bindUIEvents() {
         if (e.key !== 'Escape' || !$('#persona-forge-popup').hasClass('open')) return;
         if (document.querySelector('dialog[open]')) return;
         if (closeInfoTipByEscape($root[0])) return;
+        if (closeHistoryMenu({ focus: true })) return;
+        if (compareHandlesEscape()) return;
         closePopup();
     });
 
@@ -412,9 +452,11 @@ export function bindUIEvents() {
     $root.on('click', '.pf-more-item', onMoreMenuAction);
 
     bindInfoTips($root[0]);
+    bindCompareView($root[0]);
 
     $root.on('click', (e) => {
         if (!$(e.target).closest('.pf-more-wrap').length) closeMoreMenu();
+        if (!$(e.target).closest('.pf-history-menu, .pf-history-more').length) closeHistoryMenu();
     });
 
     $root.on('change', '#pf-wi-toggle', onWorldInfoToggle);
@@ -585,9 +627,19 @@ export function bindUIEvents() {
     $root.on('click', '#pf-edit-apply', applyEdit);
 
     $root.on('click', '#pf-translate-btn', () => {
+        $(`input[name="pf-translate-target"][value="${getSettings().translateTarget === 'attach' ? 'attach' : 'new'}"]`).prop('checked', true);
         $('#pf-translate-panel').toggle();
         $('#pf-regen-all-panel').hide();
     });
+    $root.on('change', 'input[name="pf-translate-target"]', function () {
+        updateSetting('translateTarget', $(this).val() === 'attach' ? 'attach' : 'new');
+    });
+    $root.on('change', 'input[name="pf-view-lang"]', onViewLangChange);
+    $root.on('click', '#pf-view-retranslate', onViewRetranslate);
+    $root.on('click', '#pf-view-delete', onViewDeleteTranslation);
+    $root.on('click', '.pf-history-compare', onHistoryCompare);
+    $root.on('click', '.pf-history-more', onHistoryMore);
+    $root.on('click', '.pf-history-menu .pf-more-item', () => closeHistoryMenu());
 
     $root.on('click', '#pf-translate-go', onTranslateClick);
     $root.on('click', '#pf-translate-cancel', () => $('#pf-translate-panel').hide());
@@ -621,11 +673,11 @@ export function bindUIEvents() {
 
     // 기록 항목을 누르면 불러오기 (오른쪽 버튼들은 제외)
     $root.on('click', '.pf-history-item.pf-loadable', function (e) {
-        if ($(e.target).closest('.pf-history-actions').length) return;
+        if ($(e.target).closest('.pf-history-actions, .pf-history-fav').length) return;
         onHistoryLoad.call(this);
     });
     $root.on('keydown', '.pf-history-item.pf-loadable', function (e) {
-        if (e.key !== 'Enter' || $(e.target).closest('.pf-history-actions').length) return;
+        if (e.key !== 'Enter' || $(e.target).closest('.pf-history-actions, .pf-history-fav').length) return;
         e.preventDefault();
         onHistoryLoad.call(this);
     });
@@ -681,6 +733,9 @@ export function bindUIEvents() {
     });
     $root.on('change', 'input[name="pf-greeting-pov"]', function () {
         updateSetting('greetingPov', $(this).val());
+    });
+    $root.on('change', 'input[name="pf-greeting-tense"]', function () {
+        updateSetting('greetingTense', GREETING_TENSES[$(this).val()] ? $(this).val() : 'auto');
     });
     $root.on('click', '#pf-greeting-go', onGreetingGenerate);
     $root.on('click', '#pf-greeting-stop', onGreetingStop);
@@ -1067,6 +1122,8 @@ function updateSettingsUI() {
     updateGreetingLengthInput();
     const greetingPov = GREETING_POVS[settings.greetingPov] ? settings.greetingPov : 'third';
     $(`input[name="pf-greeting-pov"][value="${greetingPov}"]`).prop('checked', true);
+    const greetingTense = GREETING_TENSES[settings.greetingTense] ? settings.greetingTense : 'auto';
+    $(`input[name="pf-greeting-tense"][value="${greetingTense}"]`).prop('checked', true);
 
     $('#pf-sheet-text').val(settings.sheetTemplate || '');
 
@@ -1836,9 +1893,7 @@ function renderFieldItemHtml(set, fieldId, { order = 0, total = 0 } = {}) {
     const modifiedBadge = isModified ? '<span class="pf-field-modified-badge" title="수정됨">*</span>' : '';
     const id = escapeHtml(fieldId);
 
-    const orderControls = selected ? `
-        <span class="pf-field-drag" title="끌어서 순서 변경"><i class="fa-solid fa-grip-vertical"></i></span>
-        <span class="pf-field-order-num">${order}</span>` : '';
+    const orderControls = selected ? `<span class="pf-field-order-num">${order}</span>` : '';
     const moveButtons = selected ? `
         <button class="pf-field-move-btn pf-icon-btn-sm" data-field-id="${id}" data-dir="up" title="위로" ${order === 1 ? 'disabled' : ''}>
             <i class="fa-solid fa-chevron-up"></i>
@@ -1876,7 +1931,7 @@ function renderFieldList(set) {
     const unselectedIds = getAllFieldIds(set).filter(id => !selectedIds.includes(id));
     const $list = $(list);
 
-    let html = `<div class="pf-field-group-label">선택된 ${noun} <span class="pf-hint-inline">— 이 순서대로 작성됩니다. 손잡이를 끌거나 ▲▼로 순서 변경</span></div>`;
+    let html = `<div class="pf-field-group-label">선택된 ${noun} <span class="pf-hint-inline">— 이 순서대로 작성됩니다. 항목을 꾹 눌러(PC는 끌어서) 옮기거나 ▲▼로 순서 변경</span></div>`;
     html += selectedIds.length
         ? `<div id="${sortableId}" class="pf-custom-fields">${selectedIds.map((id, idx) => renderFieldItemHtml(set, id, { order: idx + 1, total: selectedIds.length })).join('')}</div>`
         : `<div class="pf-field-group-empty">아래 목록에서 포함할 ${noun}${josa(noun, '을', '를')} 체크하십시오.</div>`;
@@ -1888,25 +1943,14 @@ function renderFieldList(set) {
 
     $list.html(html);
 
-    // 드래그 정렬 (실리태번 내장 jQuery UI — 모바일은 touch-punch로 지원)
-    const $sortable = $(`#${sortableId}`);
-    if ($sortable.length && typeof $sortable.sortable === 'function') {
-        $sortable.sortable({
-            handle: '.pf-field-drag',
-            items: '> .pf-custom-field-item',
-            axis: 'y',
-            tolerance: 'pointer',
-            stop: () => {
-                const ids = $sortable.children('.pf-custom-field-item').map(function () {
-                    return $(this).attr('data-field-id');
-                }).get();
-                updateSetting(selectedKey, ids);
-                refresh();
-            },
-        });
-    } else {
-        $list.find('.pf-field-drag').hide();
-    }
+    // 순서 바꾸기 — 손잡이 없이 항목을 꾹 눌러(터치) 또는 끌어서(마우스)
+    makeSortable(document.getElementById(sortableId), {
+        itemSelector: '.pf-custom-field-item',
+        onSort: ids => {
+            updateSetting(selectedKey, ids);
+            refresh();
+        },
+    });
 }
 
 function onCustomFieldToggle() {
@@ -1978,21 +2022,48 @@ function onFieldEditToggle() {
     </div>`;
 
     $item.append(form);
-    $item.find('.pf-autogrow').each(function () { autoGrow(this); });
+    $item.find('.pf-autogrow').each(function () { autoGrow(this, { now: true }); });
+}
+
+// 입력칸 높이를 글에 맞춤 — 높이가 실제로 바뀔 때만 손댐
+// (키마다 높이를 다시 쓰면 :has() 선택자가 많은 테마·확장이 깔린 실리태번에서 매번 페이지 전체 스타일을 다시 계산해 입력이 끊김)
+// 글이 줄면 지우는 동안은 그대로 두고, 잠깐 멈춘 뒤 한 번 줄임 / now: 칸을 열거나 비웠을 때 바로 맞춤
+function fitTextarea(el, max = Infinity, { now = false } = {}) {
+    if (!el) return;
+    const length = el.value.length;
+    const shrank = length < (el.pfFitLength ?? length);
+    el.pfFitLength = length;
+    clearTimeout(el.pfFitTimer);
+    if (now) {
+        measureTextarea(el, max);
+    } else if (shrank) {
+        el.pfFitTimer = setTimeout(() => measureTextarea(el, max), 300);
+    } else if (el.scrollHeight > el.clientHeight) {
+        setTextareaHeight(el, Math.min(el.scrollHeight + 2, max));
+    }
+}
+
+function measureTextarea(el, max) {
+    if (!el.isConnected) return;
+    const before = el.style.height;
+    el.style.height = 'auto';
+    const next = `${Math.min(el.scrollHeight + 2, max)}px`;
+    el.style.height = next === before ? before : next;
+}
+
+function setTextareaHeight(el, px) {
+    const value = `${px}px`;
+    if (el.style.height !== value) el.style.height = value;
 }
 
 // 한 줄 입력칸이지만 길면 줄바꿈되어 아래로 늘어남 (모바일에서 가로로 잘려 보이지 않게)
-function autoGrow(el) {
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight + 2}px`;
+function autoGrow(el, options) {
+    fitTextarea(el, Infinity, options);
 }
 
 // 편집 칸을 내용 높이에 맞춤 — 너무 길면 화면 높이의 60%에서 멈추고 스크롤
-function fitToContent(el) {
-    if (!el) return;
-    el.style.height = 'auto';
-    const max = Math.max(160, Math.round(window.innerHeight * 0.6));
-    el.style.height = `${Math.min(el.scrollHeight + 2, max)}px`;
+function fitToContent(el, options) {
+    fitTextarea(el, Math.max(160, Math.round(window.innerHeight * 0.6)), options);
 }
 
 function onFieldEditSave() {
@@ -2302,14 +2373,8 @@ function renderGenerationResult(data) {
     $('#pf-result-lang').text(langLabel);
     updateResultKindBadge();
 
-    if (data.isCustomSheet) {
-        renderCustomResultBlock(data.fullText);
-    } else {
-        renderSectionCards(data.sections);
-    }
-
+    renderProfileBody();
     setEditMode(false);
-    updateIncompleteBanner();
 
     $('#pf-regen-all-panel').hide();
     $('#pf-translate-panel').hide();
@@ -2336,7 +2401,8 @@ const INCOMPLETE_TOAST = {
 };
 
 function updateIncompleteBanner() {
-    const info = state.currentGeneration?.incomplete;
+    const shown = shownProfile();
+    const info = shown.readOnly ? shown.incomplete : state.currentGeneration?.incomplete;
     const $banner = $('#pf-incomplete-banner');
     if (!info) {
         $banner.hide();
@@ -2384,10 +2450,13 @@ function renderResultConcept(data = state.currentGeneration) {
 // 프로필 토큰 수 (그리팅 제외) — 실리태번 토크나이저 기준
 async function updateResultTokens(data = state.currentGeneration) {
     const $badge = $('#pf-result-tokens');
-    const text = data?.fullText || '';
+    const shown = shownProfile(data);
+    const text = shown.text;
     if (!text) return $badge.text('');
     const tokens = await countTokens(text);
-    if (state.currentGeneration === data && data.fullText === text) $badge.text(withModel(`약 ${tokens.toLocaleString()}토큰`, data.model));
+    if (state.currentGeneration === data && shownProfile(data).text === text) {
+        $badge.text(withModel(`약 ${tokens.toLocaleString()}토큰`, shown.readOnly ? shown.model : data.model));
+    }
 }
 
 // 토큰 수 옆에 만든 모델 이름 (예전 기록처럼 모르면 토큰 수만)
@@ -2411,7 +2480,8 @@ function renderResultTitle(data = state.currentGeneration) {
     if (data.customTitle) name = data.customTitle; // 기록 이름을 직접 바꾼 결과
     const ref = note ? ` <span class="pf-result-ref">${escapeHtml(note)}</span>` : '';
     const icon = data.worldOnly ? 'fa-earth-asia' : (isBot ? 'fa-robot' : 'fa-user');
-    $('#pf-result-char-name').html(`<i class="fa-solid ${icon}"></i> ${escapeHtml(name)}${ref}`);
+    const rename = '<button id="pf-record-rename-btn" class="pf-title-rename" type="button" title="기록 이름 바꾸기" aria-label="기록 이름 바꾸기"><i class="fa-solid fa-tag"></i></button>';
+    $('#pf-result-char-name').html(`<i class="fa-solid ${icon}"></i><span class="pf-result-name">${escapeHtml(name)}</span>${rename}${ref}`);
 }
 
 const RULE_LINE = /^\s*([-*_])(?:\s*\1){2,}\s*$/;
@@ -2448,9 +2518,9 @@ function headerLabelOf(section) {
     return headerLabel(section?.header);
 }
 
-function renderSectionCards(sections) {
+function renderSectionCards(sections, fullText = state.currentGeneration?.fullText || '') {
     if (hasOddStructure(sections)) {
-        renderCustomResultBlock(state.currentGeneration?.fullText || '', 'PROFILE');
+        renderCustomResultBlock(fullText, 'PROFILE');
         return;
     }
     const $container = $('#pf-sections-container');
@@ -2641,7 +2711,7 @@ function onSectionEditToggle() {
     </div>`;
 
     $body.after(editPanel);
-    fitToContent($card.find('.pf-section-edit-textarea')[0]);
+    fitToContent($card.find('.pf-section-edit-textarea')[0], { now: true });
 }
 
 function onSectionEditSave() {
@@ -2744,29 +2814,130 @@ function applyEdit() {
 function refreshProfileView() {
     const gen = state.currentGeneration;
     if (!gen) return;
-    if (gen.isCustomSheet) renderCustomResultBlock(gen.fullText);
-    else renderSectionCards(gen.sections);
+    renderProfileBody(); // 글을 통째로 고치면 "잘림" 표시가 지워지므로 배너도 함께
     updateResultKindBadge();
-    updateIncompleteBanner(); // 글을 통째로 고치면 "잘림" 표시가 지워지므로 배너도 함께
     refreshResultHeader();
 }
 
-async function onTranslateClick() {
-    if (warnIfBusy()) return;
+// 결과 본문 — 붙인 번역을 고르면 그 번역을 읽기 전용으로 (편집·재생성 버튼은 숨김, AI에게는 원본만)
+function renderProfileBody() {
+    const gen = state.currentGeneration;
+    if (!gen) return;
+    const shown = shownProfile(gen);
+    $('#pf-gen-result').toggleClass('pf-viewing-translation', shown.readOnly);
+    if (!shown.readOnly) {
+        if (gen.isCustomSheet) renderCustomResultBlock(gen.fullText);
+        else renderSectionCards(gen.sections);
+    } else if (gen.isCustomSheet || countMainSections(shown.text) === 0) {
+        renderCustomResultBlock(shown.text);
+    } else {
+        renderSectionCards(parseResponse(shown.text), shown.text);
+    }
+    $('#pf-result-lang').text(LANGUAGES[shown.language]?.label || shown.language || '');
+    renderViewBar();
+    updateIncompleteBanner();
+    updateResultTokens();
+}
 
-    const targetLang = $('#pf-translate-lang').val();
+// 붙인 번역이 있을 때만 — 원본·번역 바꿔 보기, 번역을 보는 중이면 읽기 전용 안내와 다시 번역·삭제
+function renderViewBar() {
+    const gen = state.currentGeneration;
+    const langs = Object.keys(gen?.translations || {}).filter(lang => gen.translations[lang]?.text);
+    const $bar = $('#pf-view-bar');
+    if (!langs.length) {
+        $bar.hide().empty();
+        return;
+    }
+    const shown = shownProfile(gen);
+    const staleOf = lang => gen.translations[lang].source && gen.translations[lang].source !== textSignature(gen.fullText);
+    const active = shown.readOnly ? gen.viewLang : '';
+    const pill = (value, label, stale) => `<label class="pf-pill"><input type="radio" name="pf-view-lang" value="${escapeHtml(value)}"${active === value ? ' checked' : ''}><span>${escapeHtml(label)}${stale ? ' <i class="fa-solid fa-triangle-exclamation" title="원본을 고치기 전 번역"></i>' : ''}</span></label>`;
+    const note = shown.readOnly ? `
+        <div class="pf-view-note">
+            <span class="pf-view-note-text"><i class="fa-solid fa-lock"></i> 읽기 전용 · AI에게 보내지 않음${shown.stale ? '<span class="pf-view-stale"><i class="fa-solid fa-triangle-exclamation"></i> 원본을 고치기 전 번역</span>' : ''}</span>
+            <span class="pf-view-note-actions">
+                <button id="pf-view-retranslate" class="pf-btn pf-small-btn" type="button"><i class="fa-solid fa-language"></i> 다시 번역</button>
+                <button id="pf-view-delete" class="pf-btn pf-small-btn pf-danger-btn" type="button"><i class="fa-solid fa-trash-can"></i> 삭제</button>
+            </span>
+        </div>` : '';
+    $bar.html(`
+        <span class="pf-pill-group" role="radiogroup" aria-label="보기 언어">
+            ${pill('', `${LANGUAGES[gen.language]?.label || gen.language} · 원본`, false)}
+            ${langs.map(lang => pill(lang, LANGUAGES[lang]?.label || lang, staleOf(lang))).join('')}
+        </span>${note}`).show();
+}
+
+function onViewLangChange() {
+    const gen = state.currentGeneration;
+    if (!gen) return;
+    if (isEditMode) {
+        showToast('warning', '전체 편집을 마친 뒤에 바꿔 보십시오.');
+        renderViewBar();
+        return;
+    }
+    gen.viewLang = String($(this).val() || '');
+    $('#pf-sections-container .pf-section-edit-panel').remove();
+    renderProfileBody();
+}
+
+async function onViewRetranslate() {
+    const lang = state.currentGeneration?.viewLang;
+    if (lang) await runTranslation(lang, { attach: true });
+}
+
+async function onViewDeleteTranslation() {
+    const gen = state.currentGeneration;
+    const lang = gen?.viewLang;
+    if (!lang || !gen.translations?.[lang]) return;
+    if (!(await askConfirm(`붙여 둔 ${LANGUAGES[lang]?.label || lang} 번역을 지우시겠습니까? 원본은 그대로입니다.`))) return;
+    delete gen.translations[lang];
+    gen.viewLang = '';
+    renderProfileBody();
+    syncTranslationsToHistory(gen);
+}
+
+// 붙인 번역만 지금 기록에 반영 (원본·대화는 그대로)
+async function syncTranslationsToHistory(gen = state.currentGeneration) {
+    if (!gen?.fullText || (!gen.historyId && !getSettings().autoSaveHistory)) return;
+    const translations = Object.keys(gen.translations || {}).length ? gen.translations : '';
+    try {
+        const found = gen.historyId && await updateHistory(gen.historyId, { translations });
+        if (!found && gen === state.currentGeneration && getSettings().autoSaveHistory) {
+            gen.historyId = await addHistory(historyEntryFromCurrent(defaultHistoryName()));
+            gen.supportChatLoadFailed = false;
+        }
+        updateHistoryUI();
+    } catch (error) {
+        logError('syncTranslationsToHistory', error);
+        showToast('error', `기록 자동 저장 실패: ${error.message}`);
+    }
+}
+
+async function onTranslateClick() {
+    await runTranslation($('#pf-translate-lang').val(), { attach: getSettings().translateTarget === 'attach' });
+}
+
+// attach: 지금 기록에 붙여 읽기 전용으로 (같은 언어는 덮어씀) / 아니면 번역본을 새 기록으로
+async function runTranslation(targetLang, { attach = false } = {}) {
+    if (warnIfBusy()) return;
+    const label = LANGUAGES[targetLang]?.label || targetLang;
 
     try {
         showGenerateLoading(true, 'translate');
         $('#pf-translate-panel').hide();
 
-        const result = await translateProfile(targetLang);
+        const result = await translateProfile(targetLang, { attach });
 
         renderGenerationResult(result);
         playGlint('.pf-result-toolbar');
-        showToast('success', `${LANGUAGES[targetLang]?.label || targetLang}로 번역되었습니다!`);
         playChime('done');
-        autoSaveToHistory();
+        if (attach) {
+            showToast('success', `${label} 번역을 이 기록에 붙였습니다. 제목 아래에서 원본과 바꿔 볼 수 있습니다.`);
+            syncTranslationsToHistory(result);
+        } else {
+            showToast('success', `${label}로 번역되었습니다!`);
+            autoSaveToHistory();
+        }
 
     } catch (error) {
         if (isCancelError(error)) return;
@@ -2786,6 +2957,7 @@ function greetingMetaText(greeting) {
     if (greeting.length === 'custom' && greeting.customLength) parts.push(greeting.customLength);
     else if (GREETING_LENGTHS[greeting.length]) parts.push(GREETING_LENGTHS[greeting.length].label);
     if (GREETING_POVS[greeting.pov]) parts.push(GREETING_POVS[greeting.pov].label);
+    if (GREETING_TENSES[greeting.tense]?.prompt) parts.push(GREETING_TENSES[greeting.tense].label);
     if (LANGUAGES[greeting.language]) parts.push(LANGUAGES[greeting.language].label);
     return parts.join(' · ');
 }
@@ -3163,34 +3335,8 @@ function scrollSupportToEndIfOpen() {
 }
 
 // 입력칸은 내용에 맞춰 늘어나되 몇 줄까지만
-function growSupportInput(el) {
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight + 2, 140)}px`;
-}
-
-// 모델 답을 원래 글 조각 그대로 글과 변경안(<edit>)으로 나눔 — 형식이 틀리면 전부 글
-function splitSupportText(text) {
-    const pieces = [];
-    const pattern = /<edit\b([^>]*)>([\s\S]*?)<\/edit>/gi;
-    let last = 0;
-    let match;
-    const tag = (body, name) => body.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`, 'i'))?.[1]?.trim() || '';
-    while ((match = pattern.exec(text))) {
-        const revised = tag(match[2], 'revised');
-        if (!revised) continue;
-        if (match.index > last) pieces.push({ type: 'text', raw: text.slice(last, match.index) });
-        pieces.push({
-            type: 'edit',
-            raw: match[0],
-            target: match[1].match(/target\s*=\s*"([^"]*)"/i)?.[1]?.trim() || '',
-            original: tag(match[2], 'original'),
-            revised,
-            revisedKo: tag(match[2], 'revised_ko'),
-        });
-        last = pattern.lastIndex;
-    }
-    if (last < text.length) pieces.push({ type: 'text', raw: text.slice(last) });
-    return pieces;
+function growSupportInput(el, options) {
+    fitTextarea(el, 140, options);
 }
 
 // 화면에 보일 조각 — 빈 글 조각은 빼고
@@ -3242,15 +3388,17 @@ function selectSupportSwipe(message, index) {
     message.swipe = index;
     message.text = version.text;
     message.face = version.face;
+    if (version.stop) message.stop = version.stop;
+    else delete message.stop;
 }
 
 function addSupportSwipe(message, reply) {
     if (!Array.isArray(message.swipes)) {
-        const first = { text: message.text, face: message.face };
+        const first = { text: message.text, face: message.face, stop: message.stop };
         if (supportApplied.has(message)) supportApplied.set(first, supportApplied.get(message));
         message.swipes = [first];
     }
-    message.swipes.push({ text: reply.text || '(빈 답이 왔습니다)', face: reply.face });
+    message.swipes.push({ text: reply.text || '(빈 답이 왔습니다)', face: reply.face, stop: reply.stopReason || undefined });
     selectSupportSwipe(message, message.swipes.length - 1);
 }
 
@@ -3292,37 +3440,61 @@ function supportEditStatus(message, index, editIndex, edit) {
     const applied = supportApplied.get(supportVersion(message));
     if (applied?.has(editIndex)) return canUndoSupportEdit(applied.get(editIndex)) ? 'undo' : 'applied';
     const latest = index === supportChat().length - 1 && !supportController;
-    return latest && edit.original ? 'ready' : '';
+    return latest && edit.original && !edit.cut ? 'ready' : '';
 }
 
+// 바뀐 부분만 표시한 글 (mark: [시작, 끝])
+function markedTextHtml(text, [start, end], className) {
+    if (!(end > start)) return supportTextHtml(text);
+    return `${supportTextHtml(text.slice(0, start))}<mark class="${className}">${supportTextHtml(text.slice(start, end))}</mark>${supportTextHtml(text.slice(end))}`;
+}
+
+// 변경안 카드 — 지금 글에서 찾으면 그 줄(항목) 전체를 바꾸기 전·후로 보이고 바뀐 부분을 표시,
+// 못 찾으면(이미 다른 글로 바뀐 경우 등) 남매가 쓴 원문·대체안 그대로
 function supportEditHtml(edit, index, editIndex, status) {
     const ids = `data-message="${index}" data-edit="${editIndex}"`;
+    const context = supportEditContext(edit);
+    const oldHtml = context ? markedTextHtml(context.before, context.beforeMark, 'pf-support-mark-old') : supportTextHtml(edit.original);
+    const newHtml = context ? markedTextHtml(context.after, context.afterMark, 'pf-support-mark-new') : supportTextHtml(edit.revised);
+    const partial = !!context && context.after !== edit.revised.trim();
     const original = edit.original ? `
         <details class="pf-support-edit-original">
             <summary><i class="fa-solid fa-chevron-right"></i> 원문 보기</summary>
-            <div class="pf-support-edit-box pf-support-edit-old">${supportTextHtml(edit.original)}</div>
+            <div class="pf-support-edit-box pf-support-edit-old">${oldHtml}</div>
         </details>` : '';
     const korean = edit.revisedKo ? `
-        <div class="pf-support-edit-label">한국어</div>
+        <div class="pf-support-edit-label">${partial ? '한국어 (바뀐 부분)' : '한국어'}</div>
         <div class="pf-support-edit-box pf-support-edit-ko">${supportTextHtml(edit.revisedKo)}</div>` : '';
+    const revised = edit.revised ? `
+            <div class="pf-support-edit-label">대체안</div>
+            <div class="pf-support-edit-box pf-support-edit-new">${newHtml}</div>` : '';
     const applied = '<span class="pf-support-applied"><i class="fa-solid fa-check"></i> 적용됨</span>';
-    const foot = {
-        ready: `<button class="pf-support-apply pf-btn pf-small-btn" type="button" ${ids}><i class="fa-solid fa-hammer"></i> 바로 적용</button>`,
-        applied,
-        undo: `${applied}<button class="pf-support-undo pf-btn pf-small-btn" type="button" ${ids}><i class="fa-solid fa-rotate-left"></i> 되돌리기</button>`,
-    }[status] || '';
+    const foot = edit.cut
+        ? '<span class="pf-support-edit-cut-note"><i class="fa-solid fa-scissors"></i> 답이 끊겨 바로 적용할 수 없습니다</span>'
+        : {
+            ready: `<button class="pf-support-apply pf-btn pf-small-btn" type="button" ${ids}><i class="fa-solid fa-hammer"></i> 바로 적용</button>`,
+            applied,
+            undo: `${applied}<button class="pf-support-undo pf-btn pf-small-btn" type="button" ${ids}><i class="fa-solid fa-rotate-left"></i> 되돌리기</button>`,
+        }[status] || '';
+    const classes = ['pf-support-edit', status === 'applied' || status === 'undo' ? 'pf-support-edit-done' : '', edit.cut ? 'pf-support-edit-cut' : ''].filter(Boolean).join(' ');
     return `
-        <div class="pf-support-edit${status === 'applied' || status === 'undo' ? ' pf-support-edit-done' : ''}">
+        <div class="${classes}">
             <div class="pf-support-edit-head">
-                <span class="pf-support-edit-title"><i class="fa-solid fa-pen-ruler"></i> 변경안${edit.target ? `<span class="pf-support-edit-target">${escapeHtml(edit.target)}</span>` : ''}</span>
-                <button class="pf-support-edit-copy" type="button" ${ids} title="대체안 복사"><i class="fa-regular fa-copy"></i></button>
+                <span class="pf-support-edit-title"><i class="fa-solid fa-pen-ruler"></i> 변경안${edit.cut ? ' (끊김)' : ''}${edit.target ? `<span class="pf-support-edit-target">${escapeHtml(edit.target)}</span>` : ''}</span>
+                ${edit.revised ? `<button class="pf-support-edit-copy" type="button" ${ids} title="대체안 복사"><i class="fa-regular fa-copy"></i></button>` : ''}
             </div>
             ${original}
-            <div class="pf-support-edit-label">대체안</div>
-            <div class="pf-support-edit-box pf-support-edit-new">${supportTextHtml(edit.revised)}</div>
+            ${revised}
             ${korean}
             ${foot ? `<div class="pf-support-edit-foot">${foot}</div>` : ''}
         </div>`;
+}
+
+// 답이 중간에 멈췄을 때 (API가 정상 종료가 아니라고 알려 줬거나, 변경안이 닫히지 않은 채 끝남)
+function supportStopHtml(message, text) {
+    const reason = describeStopReason(message.stop);
+    if (!reason && !hasCutEdit(text)) return '';
+    return `<div class="pf-support-stopped"><i class="fa-solid fa-triangle-exclamation"></i><span>답이 중간에 멈췄습니다. ${reason ? `AI가 알려 준 이유: ${escapeHtml(reason)}` : 'API가 이유를 알려 주지 않았습니다.'}</span></div>`;
 }
 
 // 서포터 쪽: 프로필 이미지(답마다 그 답의 표정) + 이어지는 답의 첫 번째에만 이름
@@ -3413,7 +3585,8 @@ function renderSupportLog({ scroll = 'end' } = {}) {
                 <button class="pf-support-rewrite-cancel pf-btn pf-small-btn" type="button">취소</button>
                 <button class="pf-support-rewrite-save pf-primary-btn pf-small-btn" type="button"><i class="fa-solid fa-check"></i> 저장</button>
             </div>` : (actions ? `<div class="pf-support-actions">${actions}</div>` : '');
-        const body = `<div class="pf-support-group">${items}</div>${foot}`;
+        const stopped = mine || message.local || rewriting ? '' : supportStopHtml(message, text);
+        const body = `<div class="pf-support-group">${items}${stopped}</div>${foot}`;
         if (!mine) return supportTheirsHtml({ face: message.face, showName, isNew, swipeable: !!swipes, rewriting, body });
         return `
             <div class="pf-support-msg pf-support-mine${isNew ? ' pf-support-new' : ''}${rewriting ? ' pf-support-rewriting' : ''}">
@@ -3433,7 +3606,7 @@ function renderSupportLog({ scroll = 'end' } = {}) {
         this.classList.remove('pf-support-new');
         $(this).off('animationend');
     });
-    $('#pf-support-log .pf-support-rewrite-input').each(function () { growRewriteInput(this); });
+    $('#pf-support-log .pf-support-rewrite-input').each(function () { growRewriteInput(this, { now: true }); });
     supportRenderedCount = chat.length;
     supportSwiped = false;
     $('#pf-support-send')
@@ -3497,7 +3670,7 @@ async function requestSupportReply(regen = null) {
             addSupportSwipe(regen, reply);
             supportSwiped = true;
         } else {
-            chat.push({ role: 'assistant', text: reply.text || '(빈 답이 왔습니다)', face: reply.face });
+            chat.push({ role: 'assistant', text: reply.text || '(빈 답이 왔습니다)', face: reply.face, stop: reply.stopReason || undefined });
         }
     } catch (error) {
         if (!isCancelError(error)) {
@@ -3534,7 +3707,7 @@ function onSupportSend() {
     collapseSupportSwipes(chat.at(-1));
     chat.push({ role: 'user', text });
     $input.val('');
-    growSupportInput($input[0]);
+    growSupportInput($input[0], { now: true });
     requestSupportReply();
 }
 
@@ -3619,9 +3792,8 @@ function onSupportRewriteCancel() {
 }
 
 // 고치는 입력칸은 글 길이에 맞춰 늘어나되 너무 길면 안에서 스크롤
-function growRewriteInput(el) {
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight + 2, 320)}px`;
+function growRewriteInput(el, options) {
+    fitTextarea(el, 320, options);
 }
 
 async function onSupportCopy() {
@@ -3653,11 +3825,12 @@ function supportEditAt(button) {
 async function onSupportEditCopy() {
     const { edit } = supportEditAt(this);
     if (!edit) return;
-    const success = await copyToClipboard(edit.revised);
+    const success = await copyToClipboard(supportEditContext(edit)?.after || edit.revised);
     showToast(success ? 'success' : 'error', success ? '대체안을 복사했습니다.' : '복사에 실패했습니다.');
 }
 
 function refreshAfterSupportEdit(kind) {
+    if (kind !== 'greeting' && state.currentGeneration?.viewLang) state.currentGeneration.viewLang = ''; // 바뀐 원본을 보여 줌
     if (kind === 'greeting') {
         renderGreeting();
         syncGreetingToHistory();
@@ -3762,6 +3935,7 @@ async function onGreetingGenerate() {
         length: settings.greetingLength,
         customLength: String(settings.greetingLengthCustom || ''),
         pov: settings.greetingPov,
+        tense: settings.greetingTense,
         concept: String($('#pf-greeting-concept').val() || ''),
     };
     if (options.length === 'custom' && !options.customLength.trim()) {
@@ -3854,7 +4028,7 @@ function onGreetingEditToggle() {
     $('#pf-greeting-edit-text').val(state.currentGeneration?.greeting?.text || '');
     $('#pf-greeting-body').hide();
     $panel.show();
-    fitToContent($('#pf-greeting-edit-text')[0]);
+    fitToContent($('#pf-greeting-edit-text')[0], { now: true });
 }
 
 function onGreetingEditSave() {
@@ -3895,7 +4069,7 @@ async function onCreateCardClick() {
     const name = await askText('새 캐릭터 카드의 이름을 입력하십시오:', suggested);
     if (!name || !name.trim()) return;
 
-    const description = withProfileHeader(gen.fullText, name.trim(), { tidy: !keepsOwnTitle(gen) });
+    const description = withProfileHeader(shownProfile(gen).text, name.trim(), { tidy: !keepsOwnTitle(gen) });
     const firstMessage = gen.greeting?.text || '';
     const context = getContext();
 
@@ -3956,8 +4130,9 @@ function withProfileHeader(text, name = '', { tidy = true } = {}) {
     return title ? `# ${title}\n\n${text}` : text;
 }
 
+// 복사·카드 저장·페르소나 등록은 지금 보고 있는 글로 (붙인 번역을 보고 있으면 그 번역)
 function onCopyClick() {
-    const text = state.currentGeneration?.fullText;
+    const text = shownProfile().text;
     if (!text) {
         showToast('warning', '복사할 내용이 없습니다.');
         return;
@@ -3974,7 +4149,7 @@ function onCopyClick() {
 }
 
 async function onApplyPersonaClick() {
-    const rawText = state.currentGeneration?.fullText;
+    const rawText = shownProfile().text;
     if (!rawText) {
         showToast('warning', '적용할 내용이 없습니다.');
         return;
@@ -4209,6 +4384,7 @@ function historyEntryFromCurrent(name) {
         model: gen.model || undefined,
         greetingModels: greetingModelsOf(gen),
         density: gen.density || undefined,
+        translations: Object.keys(gen.translations || {}).length ? gen.translations : undefined,
     };
 }
 
@@ -4233,11 +4409,17 @@ function autoSaveToHistory() {
         });
 }
 
+// 즐겨찾기 별 — 배지 왼쪽 (누르면 바로 켜고 끔)
+function historyFavHtml(item, id) {
+    const on = !!item.favorite;
+    return `<button class="pf-history-fav${on ? ' pf-on' : ''}" type="button" data-id="${id}" title="${on ? '즐겨찾기 해제' : '즐겨찾기'}" aria-label="${on ? '즐겨찾기 해제' : '즐겨찾기'}"><i class="fa-${on ? 'solid' : 'regular'} fa-star"></i></button>`;
+}
+
 function historyBadgesHtml(item) {
     const badges = [];
     badges.push(item.mode === 'bot'
-        ? '<span class="pf-badge pf-badge-bot">봇</span>'
-        : '<span class="pf-badge pf-badge-persona">페르소나</span>');
+        ? '<span class="pf-badge pf-badge-bot"><i class="fa-solid fa-robot"></i>봇</span>'
+        : '<span class="pf-badge pf-badge-persona"><i class="fa-solid fa-user"></i>페르소나</span>');
     const kindLabel = RESULT_KIND_LABELS[item.kind];
     if (kindLabel) badges.push(`<span class="pf-badge pf-badge-${escapeHtml(item.kind)}">${kindLabel}</span>`);
     return badges.join('');
@@ -4342,32 +4524,33 @@ async function updateHistoryUI({ refresh = false } = {}) {
     $('#pf-history-next').prop('disabled', historyPage >= pages);
 
     $list.html(pageItems.map(item => {
-        const date = new Date(item.timestamp).toLocaleDateString('ko-KR', {
-            year: 'numeric', month: 'short', day: 'numeric',
-            hour: '2-digit', minute: '2-digit',
-        });
+        const date = shortDateTime(item.timestamp);
         const langLabel = LANGUAGES[item.language]?.label || item.language;
         const id = escapeHtml(item.id);
-        const isBot = item.mode === 'bot';
         const checked = historySelected.has(item.id);
         const lead = historySelectMode
             ? `<label class="pf-history-check-wrap"><input type="checkbox" class="pf-history-check" data-id="${id}" ${checked ? 'checked' : ''}></label>`
-            : `<span class="pf-list-icon${isBot ? ' pf-list-icon-bot' : ''}"><i class="fa-solid ${isBot ? 'fa-robot' : 'fa-user'}"></i></span>`;
+            : '';
         return `
         <div class="pf-history-item${historySelectMode ? ' pf-selectable' : ' pf-loadable'}${checked ? ' pf-selected' : ''}" data-id="${id}"${historySelectMode ? '' : ' tabindex="0" title="눌러서 불러오기"'}>
             ${lead}
             <div class="pf-history-info">
-                <div class="pf-history-name">${historyBadgesHtml(item)}<span>${escapeHtml(historyDisplayName(item))}</span></div>
+                <div class="pf-history-name">${historySelectMode ? '' : historyFavHtml(item, id)}${historyBadgesHtml(item)}<span>${escapeHtml(historyDisplayName(item))}</span></div>
                 <div class="pf-history-meta">${[historyMetaHtml(item), escapeHtml(langLabel), escapeHtml(historyDensityLabel(item)), date].filter(Boolean).join(' · ')}</div>
             </div>
             <div class="pf-history-actions">
-                <button class="pf-history-fav pf-btn pf-small-btn${item.favorite ? ' pf-on' : ''}" data-id="${id}" title="${item.favorite ? '즐겨찾기 해제' : '즐겨찾기'}"><i class="fa-${item.favorite ? 'solid' : 'regular'} fa-star"></i></button>
-                <button class="pf-history-duplicate pf-btn pf-small-btn" data-id="${id}" title="복제 — 원본은 그대로 두고 사본을 만듭니다 (모루와의 대화까지)"><i class="fa-solid fa-code-branch"></i></button>
-                <button class="pf-history-copy pf-btn pf-small-btn" data-id="${id}" title="복사"><i class="fa-regular fa-copy"></i></button>
-                <button class="pf-history-delete pf-btn pf-small-btn pf-danger-btn" data-id="${id}" title="삭제"><i class="fa-solid fa-trash-can"></i></button>
+                <button class="pf-history-more pf-btn pf-small-btn" data-id="${id}" title="더 보기 (비교·복제·복사·삭제)" aria-haspopup="menu" aria-expanded="false"><i class="fa-solid fa-ellipsis"></i></button>
             </div>
         </div>`;
     }).join(''));
+}
+
+// 기록 날짜 — 짧게 (예: 26. 11. 14 00:44)
+function shortDateTime(timestamp) {
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return '';
+    const two = n => String(n).padStart(2, '0');
+    return `${two(date.getFullYear() % 100)}. ${two(date.getMonth() + 1)}. ${two(date.getDate())} ${two(date.getHours())}:${two(date.getMinutes())}`;
 }
 
 // 캐릭터 없이 월드인포만 참고했을 때 — 참고한 북 이름 (예전 기록은 이름이 없음)
@@ -4465,7 +4648,7 @@ async function onHistoryFavorite(e) {
     if (!item) return;
     // 파일 저장을 기다리지 않고 별부터 바로 바꿔 보여줌
     const on = !item.favorite;
-    $(this).toggleClass('pf-on', on).attr('title', on ? '즐겨찾기 해제' : '즐겨찾기')
+    $(this).toggleClass('pf-on', on).attr('title', on ? '즐겨찾기 해제' : '즐겨찾기').attr('aria-label', on ? '즐겨찾기 해제' : '즐겨찾기')
         .find('i').attr('class', `fa-${on ? 'solid' : 'regular'} fa-star`);
     try {
         await updateHistory(id, { favorite: on ? true : null });
@@ -4531,6 +4714,8 @@ async function onHistoryLoad() {
         density: item.density || '',
         timestamp: item.timestamp,
         isCustomSheet: isCustom,
+        translations: item.translations && typeof item.translations === 'object' ? structuredClone(item.translations) : undefined,
+        viewLang: '',
     };
 
     const charIndex = findCharacterIndex(item.charAvatar);
@@ -4552,6 +4737,54 @@ function greetingsFromHistory(item) {
 // 전체 복사 — 그리팅이 있으면 프로필 아래 "# Greeting"으로 붙임
 function profileWithGreeting(text, greeting) {
     return greeting ? `${text}\n\n# Greeting\n\n${greeting}` : text;
+}
+
+// 기록 줄의 ⋯ — 비교·복제·복사 (목록 칸은 잘리므로 메뉴는 본문 위에 띄움, 아래 자리가 모자라면 위로)
+const HISTORY_MENU_ITEMS = [
+    ['pf-history-compare', 'fa-table-columns', '비교 창에 띄우기', '읽기 전용으로 띄워 두고 지금 결과와 비교'],
+    ['pf-history-duplicate', 'fa-code-branch', '복제', '원본은 그대로 두고 사본을 만듦 (모루와의 대화까지)'],
+    ['pf-history-copy', 'fa-regular fa-copy', '복사', '프로필과 그리팅을 클립보드로'],
+    ['pf-history-delete pf-more-danger', 'fa-trash-can', '삭제', '이 기록과 모루와의 대화를 지움'],
+];
+
+function onHistoryMore(e) {
+    e.stopPropagation();
+    const button = this;
+    const wasOpen = button.getAttribute('aria-expanded') === 'true';
+    closeHistoryMenu();
+    if (wasOpen) return;
+    const body = button.closest('.pf-body');
+    if (!body) return;
+    const id = escapeHtml(String($(button).attr('data-id')));
+    const menu = document.createElement('div');
+    menu.className = 'pf-more-menu pf-history-menu';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = HISTORY_MENU_ITEMS.map(([cls, icon, label, desc]) => `
+        <button class="pf-more-item ${cls}" data-id="${id}" role="menuitem" type="button"><i class="${icon.includes(' ') ? icon : `fa-solid ${icon}`}"></i><span class="pf-more-text">${label}<small>${desc}</small></span></button>`).join('');
+    body.append(menu);
+    const frame = body.getBoundingClientRect();
+    const anchor = button.getBoundingClientRect();
+    menu.style.right = `${Math.max(8, Math.round(frame.right - anchor.right))}px`;
+    const below = anchor.bottom + 6 + menu.offsetHeight <= frame.bottom - 8;
+    const top = below ? anchor.bottom + 6 : anchor.top - 6 - menu.offsetHeight;
+    menu.style.top = `${Math.round(top - frame.top + body.scrollTop)}px`;
+    button.setAttribute('aria-expanded', 'true');
+    menu.pfButton = button;
+    if (!e.detail) menu.querySelector('button')?.focus(); // 키보드로 열었을 때만
+}
+
+function closeHistoryMenu({ focus = false } = {}) {
+    const menu = document.querySelector('#persona-forge-popup .pf-history-menu');
+    if (!menu) return false;
+    menu.pfButton?.setAttribute('aria-expanded', 'false');
+    if (focus) menu.pfButton?.focus();
+    menu.remove();
+    return true;
+}
+
+async function onHistoryCompare() {
+    const item = await findHistoryItem(String($(this).attr('data-id')));
+    if (item) openCompare(item);
 }
 
 async function onHistoryCopy() {
@@ -5007,7 +5240,10 @@ function updatePromptStatus() {
     else if (!getPrompt(currentPromptSlot, scope)) text = '비어 있음 — 이 블록은 들어가지 않음';
     else if (isPromptCustomized(currentPromptSlot, scope)) text = isScopedSlot(currentPromptSlot) ? `수정본 사용 중 (${SCOPE_LABELS[scope]} 탭)` : '수정본 사용 중';
     else text = '기본값 사용 중';
-    $('#pf-prompt-status').text(text).toggleClass('pf-prompt-status-dirty', isPromptEditorDirty());
+    // 키마다 부르므로 바뀔 때만 씀 (같은 글을 다시 써도 화면 다시 계산이 일어남)
+    const $status = $('#pf-prompt-status');
+    if ($status.text() !== text) $status.text(text);
+    $status.toggleClass('pf-prompt-status-dirty', text === '적용하지 않은 변경 있음');
 }
 
 async function onPromptSlotChange() {
@@ -5317,7 +5553,7 @@ function closeMoreMenu() {
 
 const RESETTABLE_LABELS = {
     forgeMode: '페르소나/봇 전환', botDirection: '봇 설계 방향', botPersona: '봇 — 참고할 내 페르소나', personaBase: '페르소나 — 바탕으로 삼을 내 페르소나',
-    greetingLength: '그리팅 길이', greetingPov: '그리팅 시점', streamRequests: '스트리밍으로 받기',
+    greetingLength: '그리팅 길이', greetingPov: '그리팅 시점', greetingTense: '그리팅 시제', streamRequests: '스트리밍으로 받기',
     generationMode: '생성 모드', templatePreset: '캐릭터 설정 템플릿', customFields: '캐릭터 설정 — Choice 항목 선택·순서',
     language: '출력 언어', connectionProfile: 'API 프로필', maxTokens: '최대 출력 토큰',
     includeWorldInfo: '월드인포 켜기', cardFields: '참고할 카드 항목', autoSaveHistory: '기록 자동 저장',
@@ -5560,7 +5796,7 @@ async function importBackup(parsed, fileName) {
         const exists = existing.has(item?.id);
         const meta = [
             LANGUAGES[item?.language]?.label || item?.language || '',
-            item?.timestamp ? new Date(item.timestamp).toLocaleDateString('ko-KR') : '',
+            item?.timestamp ? shortDateTime(item.timestamp) : '',
             exists ? '이미 있음' : '',
         ].filter(Boolean).join(' · ');
         return switchRowHtml({

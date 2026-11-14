@@ -1,7 +1,7 @@
 import { getContext } from "../../../../extensions.js";
 import {
     PROFILE_FIELDS, TEMPLATE_PRESETS, LANGUAGES, CARD_FIELDS, BOT_DIRECTIONS, GREETING_LENGTHS, DENSITY_LEVELS, SETTING_FIELDS,
-    MANUAL_PERSONA_ID, SUPPORTER_FACES, GUIDELINE_PLACEMENTS,
+    MANUAL_PERSONA_ID, SUPPORTER_FACES, GUIDELINE_PLACEMENTS, GREETING_TENSES,
 } from './constants.js';
 import {
     USER_GUIDELINES_INTRO, TRANSLATION_MATURE_NOTE, GREETING_ROLE, WORLD_GREETING_ROLE, SUPPORTER_FACE_RULE, SUPPORTER_FINAL,
@@ -13,6 +13,7 @@ import {
 } from './state.js';
 import { getPrompt, getGuidelinesPlacement, getPromptLabel } from './storage.js';
 import { callGenerationAPI } from './api.js';
+import { locateText, sectionOffset, replaceAt, editContext, isAmbiguous } from './support-edits.js';
 import { historySnapshot } from './history-store.js';
 import { getCharacterKey, getSelectedEntries, getSelectedBookNames, MANUAL_CHARACTER_KEY, NO_CHARACTER_KEY } from './worldinfo.js';
 
@@ -477,7 +478,8 @@ function matureContentBlock(scope) {
 // [시스템] NSFW 지침(켰을 때) → 출력 형식(세계관 설정·템플릿 서식 포함)
 // [사용자] 마지막 확인 ("지금 써라…") — 요청은 사용자 메시지로 끝나야 해서 (API 규칙, 컨셉이 없을 때도 사용자 메시지가 있게)
 // 시스템 메시지를 맨 앞 하나만 받는 API는 실리태번이 뒤쪽 시스템 메시지를 사용자 쪽으로 합쳐 보냄
-// mode(persona/bot)는 NSFW 지침의 탭, guidelines를 켜면 추가 지침을 프롬프트 탭에서 고른 자리에 (기본: 사용자 메시지 끝, 마지막 확인 뒤도 고를 수 있음)
+// mode(persona/bot)는 NSFW 지침·맨 끝 덧붙임의 탭, guidelines를 켜면 추가 지침을 프롬프트 탭에서 고른 자리에 (기본: 사용자 메시지 끝)
+// 맨 끝 덧붙임은 마지막 확인 뒤에 사용자가 적은 그대로 (태그·안내 없이)
 // matureNote: NSFW 지침이 들어갈 때 바로 뒤에 붙일 줄 (번역용)
 function requestMessages({ system, user = [], format = [], final, mode, guidelines: withGuidelines = false, matureNote = '' }) {
     const guidelines = withGuidelines ? userGuidelinesBlock(mode) : '';
@@ -489,7 +491,7 @@ function requestMessages({ system, user = [], format = [], final, mode, guidelin
     const mature = matureContentBlock(mode);
     const formatText = [at('afterUser'), mature, mature && matureNote, at('beforeFormat'), ...format].filter(Boolean).join('\n\n');
     if (formatText) messages.push({ role: 'system', content: formatText });
-    const finalText = [final, at('afterFinal')].filter(Boolean).join('\n\n');
+    const finalText = [final, getPrompt('endNote', mode)].filter(Boolean).join('\n\n');
     // 사이에 시스템 메시지가 없으면 사용자 메시지 하나로 (사용자 메시지가 연달아 가지 않게)
     if (!formatText && userText) messages.at(-1).content += `\n\n${finalText}`;
     else messages.push({ role: 'user', content: finalText });
@@ -1142,8 +1144,9 @@ function buildGreetingRequest(options = {}) {
     let task = world
         ? `Write the opening message for a roleplay set in the world in <world_setting>.`
         : `Write the opening message for a roleplay with the character in <character_profile>.`;
+    const tense = GREETING_TENSES[options.tense]?.prompt ? options.tense : 'auto';
     task += `
-- Point of view: ${pov}
+- Point of view: ${pov}${tense === 'auto' ? '' : `\n- Tense: ${GREETING_TENSES[tense].prompt}`}
 - Length: ${lengthText}`;
     const greetingNameNote = personaNameNote(gen.personaId);
     if (greetingNameNote) task += `\n- ${greetingNameNote}`;
@@ -1167,7 +1170,7 @@ Format: The message exactly as it will appear in the chat: narration and dialogu
 
     return {
         messages: requestMessages({ system, user, format: tail.slice(0, -1), final: tail.at(-1), mode: 'bot' }),
-        meta: { language, length: lengthKey, customLength: lengthKey === 'custom' ? customLength : '', pov: options.pov === 'second' ? 'second' : 'third', concept },
+        meta: { language, length: lengthKey, customLength: lengthKey === 'custom' ? customLength : '', pov: options.pov === 'second' ? 'second' : 'third', tense, concept },
     };
 }
 
@@ -1183,7 +1186,7 @@ function buildGreetingModifyRequest(instruction) {
 
     const task = `Revise <current_message> according to the user's instruction in <instruction>.
 - Apply the instruction fully. If it is broad (for example, "make it tenser"), let the change show wherever it matters. If it is narrow (for example, "rewrite the last paragraph"), change that and whatever depends on it.
-- Leave everything the instruction doesn't touch as it is, including the point of view, unless the instruction says otherwise.${personaNameNote(gen.personaId) ? `\n- ${personaNameNote(gen.personaId)}` : ''}`;
+- Leave everything the instruction doesn't touch as it is, including the point of view and tense, unless the instruction says otherwise.${personaNameNote(gen.personaId) ? `\n- ${personaNameNote(gen.personaId)}` : ''}`;
 
     const frame = greetingFrame(gen);
     const system = [
@@ -1377,6 +1380,7 @@ export function buildSupportRequest(chat = []) {
         matureContentBlock('supporter'),
         wrap('response_format', [getPrompt('supporterFormat'), SUPPORTER_FACE_RULE].filter(Boolean).join('\n')),
         SUPPORTER_FINAL.replaceAll('{name}', name),
+        getPrompt('endNote', 'supporter'),
     ].filter(Boolean).join('\n\n');
     messages.push({ role: 'system', content: guide });
     return { messages };
@@ -1409,47 +1413,38 @@ export async function sendSupportMessage(chat, { signal } = {}) {
     const lastChat = messages.slice(1).filter(message => message.role !== 'system').at(-1);
     if (lastChat?.role !== 'user') throw new Error('보낼 메시지가 없습니다.');
     const settings = getSettings();
-    const { text } = await callGenerationAPI(messages, {
+    const { text, stopReason } = await callGenerationAPI(messages, {
         signal, label: `${supporterName(supportGenderOf(state.currentGeneration))} 대화`,
         connectionProfile: settings.supporterProfile || undefined,
     });
     if (signal?.aborted) throw cancelledError();
     // 추론 내용이 본문에 섞여 온 경우만 걷어 냄 (변경안 태그는 그대로)
-    return splitSupportFace(String(text || '').replace(/^\s*<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>\s*/i, ''));
+    const reply = splitSupportFace(String(text || '').replace(/^\s*<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>\s*/i, ''));
+    return { ...reply, stopReason: stopReason || '' };
 }
 
 // ===== 서포터 변경안 바로 적용 — API 호출 없이, 원문을 찾아 대체안으로 바꿈 =====
 
-function escapeRegex(text) {
-    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// 변경안을 찾아볼 글 — 봇 결과에 그리팅이 있으면 대상 이름에 따라 그리팅 먼저 또는 프로필 먼저
+function editSources(gen, target) {
+    const hasGreeting = modeOf(gen) === 'bot' && !!gen.greeting?.text;
+    const greetingFirst = /greeting|그리팅|first message|첫\s*메시지/i.test(target || '');
+    const order = hasGreeting ? (greetingFirst ? ['greeting', 'profile'] : ['profile', 'greeting']) : ['profile'];
+    return order.map(kind => {
+        const source = kind === 'greeting' ? gen.greeting.text : gen.fullText;
+        return { kind, source, from: kind === 'profile' ? sectionOffset(source, target) : 0 };
+    });
 }
 
-// 원문 위치 — 그대로 없으면 공백·줄바꿈·따옴표 모양만 달라도 찾음
-// (from: 대상 섹션 제목 위치 — 같은 문장이 여러 섹션에 있으면 그 섹션 것부터)
-function locateText(text, needle, from = 0) {
-    const words = needle.trim().split(/\s+/).filter(Boolean);
-    if (!words.length) return null;
-    const pattern = new RegExp(words
-        .map(word => escapeRegex(word).replace(/["“”]/g, '["“”]').replace(/['‘’]/g, "['‘’]"))
-        .join('\\s+'), 'g');
-    for (const start of from > 0 ? [from, 0] : [0]) {
-        const exact = text.indexOf(needle, start);
-        if (exact >= 0) return { start: exact, end: exact + needle.length };
-        pattern.lastIndex = start;
-        const match = pattern.exec(text);
-        if (match) return { start: match.index, end: match.index + match[0].length };
+// 변경안 카드에 보일 항목 전체(바꾸기 전·후)와 바뀐 부분 — 지금 글에서 못 찾으면 null
+export function supportEditContext(edit) {
+    const gen = state.currentGeneration;
+    if (!gen?.fullText || !edit || edit.cut) return null;
+    for (const { kind, source, from } of editSources(gen, edit.target)) {
+        const context = editContext(source, edit, from);
+        if (context) return { kind, ...context };
     }
     return null;
-}
-
-function sectionOffset(text, target) {
-    const name = String(target || '').replace(/^#+/, '').trim();
-    if (!name) return 0;
-    return new RegExp(`^#{1,6}[ \\t]*${escapeRegex(name)}[ \\t]*$`, 'im').exec(text)?.index || 0;
-}
-
-function replaceAt(text, place, replacement) {
-    return text.slice(0, place.start) + replacement + text.slice(place.end);
 }
 
 // edit: { target, original, revised } — 성공하면 되돌리기 정보를 돌려줌
@@ -1460,13 +1455,12 @@ export function applySupportEdit(edit) {
     if (!gen?.fullText) throw new Error('적용할 결과가 없습니다.');
     if (!original || !revised) throw new Error('원문이나 대체안이 비어 있어 바로 적용할 수 없습니다.');
 
-    const hasGreeting = modeOf(gen) === 'bot' && !!gen.greeting?.text;
-    const greetingFirst = /greeting|그리팅|first message|첫\s*메시지/i.test(edit.target || '');
-    const order = hasGreeting ? (greetingFirst ? ['greeting', 'profile'] : ['profile', 'greeting']) : ['profile'];
-    for (const kind of order) {
-        const source = kind === 'greeting' ? gen.greeting.text : gen.fullText;
-        const place = locateText(source, original, kind === 'profile' ? sectionOffset(source, edit.target) : 0);
+    for (const { kind, source, from } of editSources(gen, edit.target)) {
+        const place = locateText(source, original, from);
         if (!place) continue;
+        if (isAmbiguous(source, original, place)) {
+            throw new Error('같은 글이 이 섹션에 여러 번 있어 어느 쪽을 바꿀지 알 수 없습니다. 남매에게 앞뒤 문장을 조금 더 넣어 다시 써 달라고 해 보십시오.');
+        }
         const next = replaceAt(source, place, revised);
         if (kind === 'greeting') {
             // 그리팅은 새 버전으로 쌓음 (이전 버전으로 넘겨 볼 수 있게)
@@ -1522,6 +1516,7 @@ export function buildPreview(kind, options = {}) {
             length: settings.greetingLength,
             customLength: settings.greetingLengthCustom,
             pov: settings.greetingPov,
+            tense: settings.greetingTense,
             concept: options.greetingConcept || '',
         });
         return { items: [{ title: '그리팅 요청', messages }], note: '' };
@@ -1590,9 +1585,12 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
     const addGuidelines = (place) => {
         if (place !== guidelinesPlace) return;
         const guidelines = getPrompt(isBot ? 'botGuidelines' : 'guidelines');
-        add(place === 'user' || place === 'afterFinal' ? 'user' : 'system', `추가 지침 (${isBot ? '봇' : '페르소나'})`, isBot ? 'botGuidelines' : 'guidelines',
+        add(place === 'user' ? 'user' : 'system', `추가 지침 (${isBot ? '봇' : '페르소나'})`, isBot ? 'botGuidelines' : 'guidelines',
             `<user_guidelines> — 기본 지시보다 우선 · 위치: ${GUIDELINE_PLACEMENTS[place].label}`, !!guidelines, '작성하지 않음');
     };
+    // 맨 끝 덧붙임 — 마지막 확인 뒤에 적은 그대로
+    const addEndNote = (endScope = scope, where = 'user') => add(where, '맨 끝 덧붙임', 'endNote', '마지막 확인 뒤에 적은 그대로 (태그·안내 없음)',
+        has('endNote', endScope), '작성하지 않음');
     // NSFW 지침 — 켰을 때만
     const addMature = (matureScope = scope, desc = '노골적인 표현을 더 적극적으로 허용') => add('system', 'NSFW 지침', 'matureContent', `<smut_guidance> — ${desc}`,
         !!settings.matureContent && has('matureContent', matureScope), settings.matureContent ? '비어 있음' : '설정 탭에서 꺼짐');
@@ -1603,6 +1601,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
         add('user', '원문', false, '<source_text> — 지금 결과 전체', hasResult, '생성된 프로필 없음');
         addMature(scope, '노골적인 부분은 그대로 노골적으로 (원문에 없는 것은 더하지 않기)');
         add('user', '번역 지시', false, '원본·대상 언어, 전체 번역, 템플릿 결과면 "## 헤더 유지", 번역문만 출력');
+        addEndNote();
         return items;
     }
 
@@ -1626,6 +1625,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
         addMature('supporter');
         add('system', '응답 형식 + 표정 태그', 'supporterFormat', '<response_format> — 변경안(<edit>) 형식 + 표정 태그');
         add('system', '마지막 확인', false, '작가의 마지막 메시지에 이름으로 답하기 (표정 태그로 시작, 고친 글은 <edit>)');
+        addEndNote('supporter', 'system');
         return items;
     }
 
@@ -1673,7 +1673,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
             add('system', '작업 지시', false, '<task> — 수정 지시를 적용하는 규칙');
             add('system', '그리팅 작성 규칙', 'greetingRules', '<greeting_rules> — 고칠 때도 같은 규칙', has('greetingRules'), '비어 있음');
         } else {
-            add('system', '작업 지시', false, '<task> — 시점·길이');
+            add('system', '작업 지시', false, '<task> — 시점·시제(고른 경우)·길이');
             add('system', '그리팅 작성 규칙', 'greetingRules', '<greeting_rules> — 흥미 유발, 프로필 읊지 않기, 보여주기, {{user}} 대신 쓰지 않기', has('greetingRules'), '비어 있음');
         }
         if (worldOnly) add('system', '세계관 그리팅 규칙', 'worldGreetingRules', '<world_greeting_rules> — 주인공 대신 세계를 내레이션, 설명 대신 장면으로', has('worldGreetingRules'), '비어 있음');
@@ -1682,6 +1682,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
         addMature();
         add('system', '출력 형식', false, '<output_format> — 언어, 채팅에 그대로 쓸 본문만');
         add('user', '마지막 확인', false, kind === 'greetingModify' ? '고친 본문 전체만 출력' : '언어와 "본문만 출력"을 한 줄로 다시 확인');
+        addEndNote('bot');
         return items;
     }
 
@@ -1734,7 +1735,7 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
     }
     addGuidelines('user');
 
-    // (추가 지침) → NSFW → (추가 지침) → 출력 형식 (시스템) / 마지막 확인 → (추가 지침) (사용자)
+    // (추가 지침) → NSFW → (추가 지침) → 출력 형식 (시스템) / 마지막 확인 → 맨 끝 덧붙임 (사용자)
     addGuidelines('afterUser');
     addMature();
     addGuidelines('beforeFormat');
@@ -1759,12 +1760,12 @@ export function describeStructure(kind, { conceptText = '' } = {}) {
             add('system', '템플릿 서식 규칙', 'templateFormat', '<output_format> 안 — 섹션 안 서식 (Format:)', has('templateFormat', scope), '비어 있음');
         }
         add('user', '마지막 확인', false, '언어·섹션 수·첫 헤더를 한 줄로 다시 확인');
-        addGuidelines('afterFinal');
+        addEndNote();
         return items;
     }
     add('system', '출력 형식', false, '<output_format> — 언어, 기존 서식 유지');
     add('user', '마지막 확인', false, '출력할 범위와 언어를 한 줄로 다시 확인');
-    addGuidelines('afterFinal');
+    addEndNote();
     return items;
 }
 
@@ -1901,7 +1902,17 @@ export async function regenerateAll(additionalInstructions = '') {
     return await generatePersona(config);
 }
 
-export async function translateProfile(targetLang) {
+// 원본 글의 지문 — 붙인 번역이 원본을 고치기 전 것인지 알아볼 때
+export function textSignature(text) {
+    let hash = 5381;
+    const value = String(text || '');
+    for (let i = 0; i < value.length; i++) hash = ((hash << 5) + hash + value.charCodeAt(i)) | 0;
+    return `${value.length.toString(36)}-${(hash >>> 0).toString(36)}`;
+}
+
+// attach: 지금 결과는 그대로 두고 번역을 붙임 (읽기 전용, AI에게는 원본만) — 같은 언어는 덮어씀
+// 아니면 지금 결과를 번역본으로 바꿈 (새 기록으로 저장됨 — 원래 기록은 그대로)
+export async function translateProfile(targetLang, { attach = false } = {}) {
     const gen = state.currentGeneration;
     if (!gen?.fullText) throw new Error('번역할 프로필이 없습니다.');
     if ((gen.language || 'en') === targetLang) throw new Error('원본 언어와 동일한 언어입니다.');
@@ -1910,12 +1921,26 @@ export async function translateProfile(targetLang) {
     const op = beginOperation();
 
     try {
-        log(`Translating profile: ${gen.language} → ${targetLang}`);
+        log(`Translating profile: ${gen.language} → ${targetLang}${attach ? ' (attach)' : ''}`);
 
         const source = gen.fullText;
         const received = await requestText(op, messages, '번역');
         const truncated = received.truncated;
         const text = keepsOwnTitle(gen) ? received.text : tidyTitleLines(received.text);
+        const incomplete = checkCompleteness({
+            kind: 'translate', truncated, text, gaps: received.gaps,
+            expected: gen.isCustomSheet ? 0 : countMainSections(source),
+            headers: gen.isCustomSheet ? [] : mainSectionHeaders(source), // 템플릿 결과는 ## 헤더를 그대로 둠
+        });
+
+        if (attach) {
+            gen.translations = {
+                ...gen.translations,
+                [targetLang]: { text, model: received.model || '', source: textSignature(source), incomplete: incomplete || undefined, time: Date.now() },
+            };
+            gen.viewLang = targetLang;
+            return gen;
+        }
 
         gen.sections = gen.isCustomSheet ? { _custom: { header: '', content: text } } : parseResponse(text);
         gen.fullText = text;
@@ -1923,17 +1948,32 @@ export async function translateProfile(targetLang) {
         gen.resultKind = 'translation';
         gen.model = received.model;
         refreshBotName(gen);
-        gen.incomplete = checkCompleteness({
-            kind: 'translate', truncated, text, gaps: received.gaps,
-            expected: gen.isCustomSheet ? 0 : countMainSections(source),
-            headers: gen.isCustomSheet ? [] : mainSectionHeaders(source), // 템플릿 결과는 ## 헤더를 그대로 둠
-        });
+        gen.incomplete = incomplete;
+        // 번역본은 새 기록 — 원래 기록을 번역본으로 덮지 않게, 원래 글에 붙인 번역은 데려가지 않음
+        gen.historyId = null;
+        gen.customTitle = '';
+        delete gen.translations;
+        delete gen.viewLang;
 
         return gen;
 
     } finally {
         endOperation(op);
     }
+}
+
+// 화면에 보일 프로필 — 붙인 번역을 고르면 그 번역(읽기 전용), 아니면 원본
+export function shownProfile(gen = state.currentGeneration) {
+    const translation = gen?.viewLang ? gen.translations?.[gen.viewLang] : null;
+    if (!translation?.text) return { text: gen?.fullText || '', language: gen?.language || '', readOnly: false };
+    return {
+        text: translation.text,
+        language: gen.viewLang,
+        readOnly: true,
+        model: translation.model || '',
+        incomplete: translation.incomplete || null,
+        stale: !!translation.source && translation.source !== textSignature(gen.fullText),
+    };
 }
 
 export async function modifyProfile(instruction) {
@@ -1977,11 +2017,11 @@ export async function generateGreeting(options = {}) {
     const op = beginOperation();
 
     try {
-        log(`Writing greeting (${meta.length}, ${meta.pov}, ${meta.language})`);
+        log(`Writing greeting (${meta.length}, ${meta.pov}, ${meta.tense}, ${meta.language})`);
         const { text, truncated, model } = await requestText(op, messages, '그리팅');
         return addGreetingVersion(gen, {
             text, language: meta.language, length: meta.length, customLength: meta.customLength,
-            pov: meta.pov, concept: meta.concept, truncated, model,
+            pov: meta.pov, tense: meta.tense, concept: meta.concept, truncated, model,
         });
     } finally {
         endOperation(op);

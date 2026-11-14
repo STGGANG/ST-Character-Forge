@@ -1308,10 +1308,22 @@
     display: none;
 }
 
+/* ⓘ는 글꼴 글자 대신 도형 그림으로 — 글꼴 높이 계산이 브라우저마다 달라(아이폰에서 위로 1px쯤 뜸) 동그란 배경 가운데에 정확히 오게 */
 .persona-forge-popup .pf-info > summary > i {
+    display: block;
+    width: 1em;
+    height: 1em;
+    background-color: currentColor;
+    -webkit-mask: var(--pf-info-mask) center / contain no-repeat;
+    mask: var(--pf-info-mask) center / contain no-repeat;
     font-size: 1em !important;
     color: var(--pf-faint) !important;
     transition: color var(--pf-ease);
+    --pf-info-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM8 3.45a1.15 1.15 0 1 0 0 2.3a1.15 1.15 0 1 0 0-2.3zM7.05 7.55a.95.95 0 0 1 1.9 0v3.7a.95.95 0 0 1-1.9 0z'/%3E%3C/svg%3E");
+}
+
+.persona-forge-popup .pf-info > summary > i::before {
+    content: none !important;
 }
 
 .persona-forge-popup .pf-info[open] > summary {
@@ -1882,16 +1894,19 @@
     flex: none;
 }
 
-.pf-field-drag {
-    flex: none;
-    width: 16px;
-    text-align: center;
-    color: var(--pf-faint);
+/* 선택된 항목 — 꾹 눌러(터치) 또는 끌어서(마우스) 순서 바꾸기 (손잡이 없음) */
+.pf-custom-fields .pf-custom-field-item.selected {
     cursor: grab;
-    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 
-.pf-field-drag:active {
+.pf-custom-fields .pf-custom-field-item.pf-sorting {
+    position: relative;
+    z-index: 2;
+    background: var(--pf-action-soft) !important;
+    box-shadow: inset 0 0 0 1.5px var(--pf-action-line);
     cursor: grabbing;
 }
 
@@ -2164,21 +2179,59 @@
 .pf-result-char {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
     min-width: 0;
     font-size: 1.05em;
     font-weight: 700;
 }
 
+/* 이름 앞 아이콘 — 네모 없이 글자 옆에 */
 .persona-forge-popup .pf-result-char > i {
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 9px;
-    background: var(--pf-accent-soft);
-    color: var(--pf-accent);
-    font-size: .8em;
+    flex: none;
+    color: var(--pf-action-text);
+    font-size: .85em;
+}
+
+.pf-result-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* 기록 이름 바꾸기 — 이름 바로 옆의 연한 아이콘
+   누르는 자리는 안쪽 여백으로 넉넉히, 보이는 간격은 앞 아이콘·이름 사이와 같게 (여백만큼 바깥을 당김) */
+.persona-forge-popup .pf-title-rename {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: auto;
+    height: auto;
+    padding: 6px !important;
+    margin: -6px !important;
+    border: 0 !important;
+    border-radius: 7px !important;
+    background: transparent !important;
+    color: var(--pf-faint) !important;
+    font-size: .85em !important;
+    line-height: 1;
+    box-shadow: none !important;
+    cursor: pointer;
+}
+
+.persona-forge-popup .pf-title-rename > i {
+    display: block;
+}
+
+.pf-title-rename:focus-visible {
+    outline: 2px solid var(--pf-action-line);
+    outline-offset: 1px;
+}
+
+@media (hover: hover) {
+    .persona-forge-popup .pf-title-rename:hover {
+        background: var(--pf-soft2) !important;
+        color: var(--pf-fg) !important;
+    }
 }
 
 .pf-result-ref {
@@ -2320,6 +2373,63 @@
 /* 언어 선택칸 옆 버튼은 선택칸 높이에 맞춤 */
 .persona-forge-popup .pf-translate-row .pf-small-btn {
     height: var(--pf-control-h);
+}
+
+/* 번역 결과 선택 (새 기록으로 / 이 기록에 붙이기) — 언어 줄 위 */
+.pf-translate-target-row {
+    margin-bottom: 8px;
+}
+
+/* 붙인 번역 바꿔 보기 — 번역이 있을 때만 결과 배지 아래 */
+.pf-view-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 4px;
+}
+
+.pf-view-bar .pf-pill span .fa-triangle-exclamation {
+    margin-left: 5px;
+    color: var(--pf-warning);
+    font-size: .9em;
+}
+
+.pf-view-note {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 8px 10px;
+    border-radius: var(--pf-r-control);
+    background: var(--pf-soft);
+    color: var(--pf-muted);
+    font-size: .82em;
+}
+
+.pf-view-note-text {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+}
+
+.pf-view-stale {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--pf-warning);
+    font-weight: 600;
+}
+
+.pf-view-note-actions {
+    display: flex;
+    gap: 6px;
+}
+
+/* 붙인 번역을 보는 중 — 읽기 전용이라 고치는 버튼은 숨김 (AI에게는 원본만) */
+#pf-gen-result.pf-viewing-translation :is(#pf-edit-toggle-btn, #pf-regen-all-btn, #pf-modify-toggle-btn, #pf-modify-panel, #pf-regen-all-panel, .pf-section-edit-btn, .pf-section-regen-btn, .pf-section-regen-panel) {
+    display: none !important;
 }
 
 .pf-warning-banner {
@@ -2546,13 +2656,15 @@
     }
 }
 
+/* 고른 것 — 테마 강조색이 글자색과 비슷한 테마에서도 보이게 대장간 모드 색과 테두리로 */
 .pf-pill input:checked + span {
-    background: var(--pf-accent-soft);
-    color: var(--pf-accent);
+    background: var(--pf-action-soft2);
+    box-shadow: inset 0 0 0 1px var(--pf-action-line);
+    color: var(--pf-action-text);
 }
 
 .pf-pill input:focus-visible + span {
-    outline: 2px solid var(--pf-accent-line);
+    outline: 2px solid var(--pf-action-line);
     outline-offset: 1px;
 }
 
@@ -3318,6 +3430,55 @@
     border-style: dashed;
 }
 
+/* 바뀐 부분 표시 — 대체안은 모드 색, 원문은 흐린 빨강 (테마의 mark 색은 쓰지 않음) */
+.persona-forge-popup .pf-support-edit-box mark {
+    padding: 0 1px;
+    border-radius: 3px;
+    color: var(--pf-fg);
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
+.persona-forge-popup .pf-support-edit-box mark.pf-support-mark-new {
+    background: color-mix(in srgb, var(--pf-mode-color) 30%, transparent);
+}
+
+.persona-forge-popup .pf-support-edit-box mark.pf-support-mark-old {
+    background: color-mix(in srgb, var(--pf-danger) 20%, transparent);
+}
+
+/* 끊긴 변경안 — 바로 적용 없이 받은 데까지만 */
+.pf-support-edit.pf-support-edit-cut {
+    border-style: dashed;
+    border-color: var(--pf-warning-line);
+}
+
+.pf-support-edit-cut-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: .92em;
+    color: var(--pf-muted);
+}
+
+/* 답이 중간에 멈췄다는 표시 — 그 답 아래 */
+.pf-support-stopped {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    padding: 7px 10px;
+    border-radius: 10px;
+    background: var(--pf-warning-soft);
+    color: var(--pf-fg);
+    font-size: .82em;
+    line-height: 1.5;
+}
+
+.pf-support-stopped > i {
+    margin-top: .2em;
+    color: var(--pf-warning);
+}
+
 .pf-support-actions {
     display: flex;
     gap: 2px;
@@ -3514,7 +3675,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 11px 12px 11px 14px;
+    padding: 12px 10px 12px 14px;
     transition: background var(--pf-ease);
 }
 
@@ -3551,12 +3712,13 @@
     color: #a585ff;
 }
 
+/* 배지 줄 · 이름 · 정보 줄 사이 간격을 똑같이 */
 .pf-history-info {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 6px;
 }
 
 .pf-history-name {
@@ -3615,13 +3777,37 @@
     }
 }
 
-.persona-forge-popup .pf-history-actions .pf-history-fav.pf-on {
+/* 즐겨찾기 별 — 배지 왼쪽의 작은 버튼 */
+.persona-forge-popup .pf-history-fav {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    /* 누르는 자리는 26px, 줄 높이는 배지만큼 (위아래 간격이 같게) */
+    width: 26px;
+    height: 26px;
+    padding: 0 !important;
+    margin: -6px -4px -6px -7px !important;
+    border: 0 !important;
+    border-radius: 6px !important;
+    background: transparent !important;
+    color: var(--pf-faint) !important;
+    font-size: .82em !important;
+    box-shadow: none !important;
+    cursor: pointer;
+}
+
+.persona-forge-popup .pf-history-fav.pf-on {
     color: var(--pf-warning) !important;
 }
 
+.pf-history-fav:focus-visible {
+    outline: 2px solid var(--pf-action-line);
+    outline-offset: 1px;
+}
+
 @media (hover: hover) {
-    .persona-forge-popup .pf-history-actions .pf-history-fav.pf-on:hover {
-        color: var(--pf-warning) !important;
+    .persona-forge-popup .pf-history-fav:not(.pf-on):hover {
+        color: var(--pf-fg) !important;
     }
 }
 
@@ -3727,6 +3913,11 @@
     letter-spacing: .02em;
     line-height: 1;
     white-space: nowrap;
+}
+
+.pf-badge > i {
+    margin-right: 4px;
+    font-size: .9em;
 }
 
 .pf-badge-original { --pf-badge-color: var(--pf-accent); }
@@ -4437,7 +4628,6 @@
 
     .pf-result-ref {
         flex-basis: 100%;
-        padding-left: 36px;
     }
 
     .pf-result-ref::before {
@@ -4459,7 +4649,7 @@
     /* 오른쪽 버튼 때문에 이름이 잘리지 않게: 배지 줄 아래에 이름 */
     .pf-history-name {
         flex-wrap: wrap;
-        row-gap: 2px;
+        row-gap: 6px;
     }
 
     .pf-history-name > span:last-child {
@@ -4575,9 +4765,21 @@
     font-weight: 700;
 }
 
-.pf-update-notes ul {
+.pf-update-notes :is(ul, ol) {
     margin: 0;
     padding-left: 1.2em;
+}
+
+/* 분류 제목 — [UI] [기능] [보완] */
+.pf-update-notes .pf-update-group {
+    margin: 8px 0 2px;
+    color: var(--pf-action-text);
+    font-size: .9em;
+    font-weight: 700;
+}
+
+.pf-update-notes h4 + .pf-update-group {
+    margin-top: 2px;
 }
 
 .pf-update-notes li + li {
@@ -4590,7 +4792,7 @@
     font-weight: 700;
 }
 
-.pf-update-notes ul + h4 {
+.pf-update-notes :is(ul, ol) + h4 {
     margin-top: 12px;
 }
 
@@ -4621,4 +4823,255 @@
 .persona-forge-popup .pf-update-ok {
     align-self: center;
     min-width: 8em;
+}
+
+
+/* ===== 비교 창 — 다른 기록을 읽기 전용으로 (넓은 화면: 옮기는 창 / 좁은 화면: 머리줄 아래 시트) ===== */
+.pf-compare[hidden],
+.persona-forge-popup .pf-compare-chip[hidden] {
+    display: none !important;
+}
+
+/* 머리줄의 비교 버튼 — 접어 두었을 때 눈에 띄게 채움(모드 색을 조금 어둡게 + 흰 글자), 창이 열려 있으면 옅게 */
+.persona-forge-popup .pf-compare-chip {
+    --pf-chip-fill: color-mix(in srgb, var(--pf-mode-color) 68%, #000);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px !important;
+    margin: 0 4px 0 0 !important;
+    border: 1px solid var(--pf-chip-fill) !important;
+    border-radius: 999px !important;
+    background: var(--pf-chip-fill) !important;
+    color: #fff !important;
+    font-size: .8em;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background var(--pf-ease), color var(--pf-ease);
+}
+
+.persona-forge-popup .pf-compare-chip[aria-pressed="true"] {
+    border-color: var(--pf-action-line) !important;
+    background: var(--pf-action-soft) !important;
+    color: var(--pf-action-text) !important;
+}
+
+.persona-forge-popup .pf-compare-chip:focus-visible {
+    outline: 2px solid var(--pf-accent-line);
+    outline-offset: 2px;
+}
+
+.pf-compare {
+    position: absolute;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    min-width: 300px;
+    min-height: 240px;
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+    overflow: hidden;
+    resize: both;
+    border: 1px solid var(--pf-line-strong);
+    border-radius: 16px;
+    background: var(--pf-surface-solid);
+    box-shadow: 0 18px 50px color-mix(in srgb, var(--SmartThemeShadowColor, #000) 70%, transparent);
+    color: var(--pf-fg);
+    font-size: calc(var(--pf-fs) * var(--pf-ui-scale, 1));
+    line-height: 1.55;
+    text-align: left;
+}
+
+.pf-compare-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 8px 8px 12px;
+    border-bottom: 1px solid var(--pf-line);
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+}
+
+.pf-compare-head:active {
+    cursor: grabbing;
+}
+
+.pf-compare-grip {
+    color: var(--pf-faint);
+    font-size: .85em;
+}
+
+.pf-compare-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-size: .9em;
+    font-weight: 700;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.pf-compare-title > i {
+    margin-right: 5px;
+    color: var(--pf-action-text);
+}
+
+
+
+.persona-forge-popup .pf-compare-head button {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 28px;
+    height: 28px;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 8px !important;
+    background: transparent !important;
+    color: var(--pf-muted) !important;
+    cursor: pointer;
+}
+
+@media (hover: hover) {
+    .persona-forge-popup .pf-compare-head button:hover {
+        background: var(--pf-soft2) !important;
+        color: var(--pf-fg) !important;
+    }
+
+    .persona-forge-popup .pf-compare-chip:hover {
+        filter: brightness(1.08);
+    }
+}
+
+.pf-compare-head button:focus-visible {
+    outline: 2px solid var(--pf-accent-line);
+    outline-offset: 1px;
+}
+
+.pf-compare-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 12px 10px;
+    border-bottom: 1px solid var(--pf-line);
+}
+
+/* 언어 버튼(.pf-pill)과 같은 높이 */
+.pf-compare-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: var(--pf-soft2);
+    color: var(--pf-muted);
+    font-size: .8em;
+    font-weight: 600;
+}
+
+.pf-compare-readonly {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: auto;
+    color: var(--pf-faint);
+    font-size: .76em;
+    white-space: nowrap;
+}
+
+.pf-compare-stale {
+    color: var(--pf-warning);
+    font-size: .78em;
+    font-weight: 600;
+}
+
+.pf-compare-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px 14px;
+    overscroll-behavior: contain;
+}
+
+.pf-compare-name {
+    font-size: 1.05em;
+    font-weight: 800;
+}
+
+.pf-compare-sec {
+    padding: 9px 11px;
+    border-radius: 12px;
+    background: var(--pf-soft);
+}
+
+.pf-compare-label {
+    margin-bottom: 4px;
+    color: var(--pf-muted);
+    font-size: .76em;
+    font-weight: 700;
+    letter-spacing: .02em;
+}
+
+.pf-compare-text {
+    font-size: .9em;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+@media (max-width: 600px) {
+    .pf-compare {
+        top: var(--pf-compare-top, 56px);
+        right: 0;
+        bottom: 0;
+        left: 0;
+        width: auto;
+        height: auto;
+        min-width: 0;
+        min-height: 0;
+        max-width: none;
+        max-height: none;
+        resize: none;
+        border-width: 1px 0 0;
+        border-radius: 16px 16px 0 0;
+    }
+
+    .pf-compare-head {
+        cursor: default;
+    }
+
+    .pf-compare-grip {
+        display: none;
+    }
+
+    /* 비교 버튼 자리 — 좁은 머리줄에서는 제목 글자를 빼고 망치 아이콘만 */
+    .persona-forge-popup.pf-comparing .pf-title-text {
+        display: none;
+    }
+}
+
+
+/* 기록 줄의 ⋯ 메뉴 — 목록 칸이 잘리므로 본문 위에 띄움 (자리는 열 때 맞춤) */
+.pf-more-menu.pf-history-menu {
+    min-width: 240px;
+    max-width: calc(100% - 16px);
+}
+
+.persona-forge-popup .pf-history-actions .pf-history-more[aria-expanded="true"] {
+    background: var(--pf-soft2) !important;
+    color: var(--pf-fg) !important;
+}
+
+/* ⋯ 메뉴의 삭제는 구분선 아래에 */
+.persona-forge-popup .pf-history-menu .pf-more-danger {
+    margin-top: 4px !important;
+    border-top: 1px solid var(--pf-line) !important;
+    border-radius: 0 0 var(--pf-r-small) var(--pf-r-small) !important;
 }
