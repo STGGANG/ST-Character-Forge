@@ -35,7 +35,7 @@ import { splitSupportText, hasCutEdit } from './support-edits.js';
 import { bindInfoTips, closeInfoTips, closeInfoTipByEscape } from './info-tips.js';
 import { bindCompareView, openCompare, compareHandlesEscape } from './compare-view.js';
 import { makeSortable } from './field-sort.js';
-import { splitEntries, entryDefaults, firstEntryName, sanitizeBookName, uniqueBookName } from './wi-export.js';
+import { splitSections, sectionEntries, splitByMarker, entryDefaults, firstEntryName, sanitizeBookName, uniqueBookName } from './wi-export.js';
 
 let isEditMode = false;
 
@@ -4202,13 +4202,21 @@ async function onCreateCardClick() {
 let wiModulePromise = null;
 let utilsModulePromise = null;
 
-function wiEntryRowHtml(entry, index) {
-    return `<div class="pf-wi-save-row" data-index="${index}">
-        <label class="pf-wi-save-head">
-            <input type="checkbox" class="pf-wi-save-include"${entry.include ? ' checked' : ''}>
-            <span class="pf-wi-save-title">${escapeHtml(entry.title || '(제목 없음)')}</span>
+// 엔트리 한 줄 — "##" 항목이 있는 "#" 덩어리는 '나누기', 나눈 항목은 묶음 머리줄의 '합치기'로 되돌림
+function wiEntryRowHtml(entry, index, section) {
+    const label = entry.part ? (entry.level === 2 ? entry.heading : '"##" 앞 내용') : entry.title;
+    const split = !entry.part && section?.parts.length
+        ? `<button type="button" class="pf-wi-save-act pf-wi-save-split" data-section="${entry.section}" title='이 엔트리만 "##" 항목마다 나눕니다'><i class="fa-solid fa-scissors"></i>나누기</button>`
+        : '';
+    return `<div class="pf-wi-save-row${entry.part ? ' pf-wi-save-part' : ''}" data-index="${index}">
+        <div class="pf-wi-save-head">
+            <label class="pf-wi-save-pick"${entry.part ? ` title="${escapeHtml(entry.title)}"` : ''}>
+                <input type="checkbox" class="pf-wi-save-include"${entry.include ? ' checked' : ''}>
+                <span class="pf-wi-save-title">${escapeHtml(label || '(제목 없음)')}</span>
+            </label>
             <span class="pf-wi-save-size" data-index="${index}"></span>
-        </label>
+            ${split}
+        </div>
         <div class="pf-wi-save-opts">
             <select class="pf-select pf-select-small pf-wi-save-mode" aria-label="켜지는 방식">
                 <option value="constant"${entry.constant ? ' selected' : ''}>항상 켜짐</option>
@@ -4217,6 +4225,18 @@ function wiEntryRowHtml(entry, index) {
             <input class="pf-input pf-wi-save-keys" type="text" placeholder="키워드 (쉼표로 구분)" aria-label="키워드"${entry.constant ? ' hidden' : ''}>
         </div>
     </div>`;
+}
+
+// 나눈 덩어리의 머리줄 — 원래 "#" 제목과 '합치기'
+function wiGroupHeadHtml(section, index) {
+    return `<div class="pf-wi-save-group">
+        <span class="pf-wi-save-group-title">${escapeHtml(section.title || '(제목 없음)')}</span>
+        <button type="button" class="pf-wi-save-act pf-wi-save-merge" data-section="${index}" title="나눈 항목을 다시 한 엔트리로 합칩니다"><i class="fa-solid fa-object-group"></i>합치기</button>
+    </div>`;
+}
+
+function parseWiKeys(value) {
+    return String(value || '').split(/[,，、]/).map(key => key.trim()).filter(Boolean);
 }
 
 // 새 북 이름 — 실리태번의 파일 이름 정리가 있으면 그것으로 (저장된 파일 이름과 목록 이름이 어긋나지 않게)
@@ -4245,8 +4265,21 @@ async function onSaveWorldInfoClick() {
     const text = shownProfile(gen).text;
     const baseName = savedName(gen, text, { recordFirst: true }) || '캐릭터 대장간';
     const books = [...(wi.world_names || [])];
-    let level = gen.worldOnly ? 2 : 1;
-    let entries = entryDefaults(splitEntries(text, level, baseName), level, { worldOnly: !!gen.worldOnly });
+    // "#" 덩어리마다 통째로 둘지 "##" 항목으로 나눌지 따로 (세계관만 만든 결과는 처음부터 모두 나눔)
+    const sections = splitSections(text, baseName);
+    const splittable = sections.flatMap((section, index) => (section.parts.length ? [index] : []));
+    let split = new Set(gen.worldOnly ? splittable : []);
+    let marker = null; // 직접 입력으로 나눌 때 그 글자 (null이면 제목 기준)
+    const edits = new Map(); // 고친 줄만 기억 → 나누기·합치기로 다시 그려도 그대로
+    let entries = [];
+    const build = () => {
+        const chunks = marker === null
+            ? sectionEntries(sections, split)
+            : splitByMarker(text, marker, baseName).map((chunk, index) => ({ ...chunk, key: `c:${marker}:${index}` }));
+        entries = entryDefaults(chunks, { worldOnly: !!gen.worldOnly })
+            .map(entry => (edits.has(entry.key) ? { ...entry, ...edits.get(entry.key) } : entry));
+    };
+    build();
 
     const $body = $(`<div class="pf-modal-stack pf-wi-save">
         <div class="pf-modal-label">저장할 곳</div>
@@ -4258,9 +4291,14 @@ async function onSaveWorldInfoClick() {
         <select id="pf-wi-existing" class="pf-select" aria-label="추가할 북" hidden>${books.map(book => `<option value="${escapeHtml(book)}">${escapeHtml(book)}</option>`).join('')}</select>
         <div class="pf-modal-label">나누는 기준</div>
         <span class="pf-pill-group">
-            <label class="pf-pill"><input type="radio" name="pf-wi-level" value="1"${level === 1 ? ' checked' : ''}><span>"#" 제목마다</span></label>
-            <label class="pf-pill"><input type="radio" name="pf-wi-level" value="2"${level === 2 ? ' checked' : ''}><span>"##" 항목마다</span></label>
+            <label class="pf-pill"><input type="radio" name="pf-wi-level" value="1"><span>"#" 제목마다</span></label>
+            <label class="pf-pill"><input type="radio" name="pf-wi-level" value="2"${splittable.length ? '' : ' disabled'}><span>"##" 항목마다</span></label>
+            <label class="pf-pill"><input type="radio" name="pf-wi-level" value="custom"><span>직접 입력</span></label>
         </span>
+        <div class="pf-wi-save-marker" hidden>
+            <input id="pf-wi-marker" class="pf-input" type="text" autocomplete="off" placeholder="예: ###  【  ---" aria-label="나누는 글자">
+            <div class="pf-hint">적은 글자로 시작하는 줄마다 엔트리를 나눕니다.</div>
+        </div>
         <div class="pf-modal-label pf-wi-save-count"></div>
         <div class="pf-wi-save-list"></div>
     </div>`);
@@ -4268,9 +4306,16 @@ async function onSaveWorldInfoClick() {
     let renderRevision = 0;
     const renderList = () => {
         const revision = ++renderRevision;
+        // 위 버튼은 전부 통째로 / 전부 나눔일 때만 켜짐 (섞여 있으면 둘 다 꺼짐)
+        const custom = marker !== null;
+        $body.find('input[name="pf-wi-level"][value="1"]').prop('checked', !custom && !split.size);
+        $body.find('input[name="pf-wi-level"][value="2"]').prop('checked', !custom && split.size > 0 && split.size === splittable.length);
+        $body.find('input[name="pf-wi-level"][value="custom"]').prop('checked', custom);
+        $body.find('.pf-wi-save-marker').prop('hidden', !custom);
         $body.find('.pf-wi-save-count').text(`엔트리 미리보기 · ${entries.length}개`);
         $body.find('.pf-wi-save-list').html(entries.length
-            ? entries.map(wiEntryRowHtml).join('')
+            ? entries.map((entry, index) => (entry.first ? wiGroupHeadHtml(sections[entry.section], entry.section) : '')
+                + wiEntryRowHtml(entry, index, sections[entry.section])).join('')
             : '<div class="pf-field-group-empty">나눌 내용이 없습니다.</div>');
         entries.forEach((entry, index) => {
             $body.find(`.pf-wi-save-row[data-index="${index}"] .pf-wi-save-keys`).val(entry.keys.join(', '));
@@ -4280,10 +4325,46 @@ async function onSaveWorldInfoClick() {
         });
     };
     renderList();
-    $body.on('change', 'input[name="pf-wi-level"]', function () {
-        level = Number($(this).val()) === 2 ? 2 : 1;
-        entries = entryDefaults(splitEntries(text, level, baseName), level, { worldOnly: !!gen.worldOnly });
+    const resplit = (next, focus) => {
+        split = next;
+        build();
         renderList();
+        if (focus) $body.find(focus).first().trigger('focus');
+    };
+    $body.on('change', 'input[name="pf-wi-level"]', function () {
+        const value = $(this).val();
+        if (value === 'custom') {
+            marker = String($body.find('#pf-wi-marker').val() || '').trim();
+            build();
+            renderList();
+            $body.find('#pf-wi-marker').trigger('focus');
+            return;
+        }
+        marker = null;
+        resplit(new Set(value === '2' ? splittable : []));
+    });
+    $body.on('input', '#pf-wi-marker', function () {
+        marker = String($(this).val() || '').trim();
+        build();
+        renderList();
+    });
+    $body.on('click', '.pf-wi-save-split', function () {
+        const index = Number($(this).attr('data-section'));
+        resplit(new Set([...split, index]), `.pf-wi-save-merge[data-section="${index}"]`);
+    });
+    $body.on('click', '.pf-wi-save-merge', function () {
+        const index = Number($(this).attr('data-section'));
+        resplit(new Set([...split].filter(value => value !== index)), `.pf-wi-save-split[data-section="${index}"]`);
+    });
+    $body.on('input change', '.pf-wi-save-row :input', function () {
+        const $row = $(this).closest('.pf-wi-save-row');
+        const entry = entries[Number($row.attr('data-index'))];
+        if (!entry) return;
+        edits.set(entry.key, {
+            include: $row.find('.pf-wi-save-include').prop('checked'),
+            constant: $row.find('.pf-wi-save-mode').val() !== 'keys',
+            keys: parseWiKeys($row.find('.pf-wi-save-keys').val()),
+        });
     });
     $body.on('change', 'input[name="pf-wi-target"]', function () {
         const existing = $(this).val() === 'existing';
@@ -4303,7 +4384,7 @@ async function onSaveWorldInfoClick() {
     const chosen = $body.find('.pf-wi-save-row').map(function () {
         const entry = entries[Number($(this).attr('data-index'))];
         if (!entry || !$(this).find('.pf-wi-save-include').prop('checked')) return null;
-        const keys = String($(this).find('.pf-wi-save-keys').val() || '').split(/[,，、]/).map(key => key.trim()).filter(Boolean);
+        const keys = parseWiKeys($(this).find('.pf-wi-save-keys').val());
         const constant = $(this).find('.pf-wi-save-mode').val() !== 'keys' || !keys.length;
         return { ...entry, constant, keys: constant ? [] : keys };
     }).get();

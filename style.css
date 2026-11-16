@@ -5142,8 +5142,35 @@
     padding: 10px 12px;
 }
 
-.pf-wi-save-row + .pf-wi-save-row {
+.pf-wi-save-list > * + * {
     border-top: 1px solid var(--pf-line);
+}
+
+/* "##"로 나눈 덩어리 — 원래 제목 머리줄 아래에 항목들을 들여서 */
+.pf-wi-save-list > .pf-wi-save-group + .pf-wi-save-row {
+    border-top: 0;
+}
+
+.pf-wi-save-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 10px 12px 2px;
+}
+
+.pf-wi-save-group-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-size: .9em;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pf-wi-save-row.pf-wi-save-part {
+    padding-left: 30px;
 }
 
 .pf-wi-save-head {
@@ -5151,7 +5178,57 @@
     align-items: center;
     gap: 8px;
     min-width: 0;
+}
+
+.pf-wi-save-pick {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
     cursor: pointer;
+}
+
+/* 나누기·합치기 — 줄 끝의 작은 알약 버튼 */
+.persona-forge-popup .pf-wi-save-act {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    margin: 0;
+    padding: 0 9px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--pf-soft2);
+    color: var(--pf-muted);
+    font: inherit;
+    font-size: .74em;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color var(--pf-ease), background var(--pf-ease);
+}
+
+.persona-forge-popup .pf-wi-save-act i {
+    font-size: .92em;
+}
+
+@media (hover: hover) {
+    .persona-forge-popup .pf-wi-save-act:hover {
+        color: var(--pf-fg);
+    }
+}
+
+.persona-forge-popup .pf-wi-save-act:focus-visible {
+    outline: 2px solid var(--pf-action-line);
+    outline-offset: 1px;
+}
+
+.pf-wi-save-marker {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .pf-wi-save-title {
