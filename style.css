@@ -2663,6 +2663,11 @@
     color: var(--pf-action-text);
 }
 
+.pf-pill input:disabled + span {
+    opacity: .45;
+    cursor: default;
+}
+
 .pf-pill input:focus-visible + span {
     outline: 2px solid var(--pf-action-line);
     outline-offset: 1px;
@@ -4755,13 +4760,13 @@
     padding: 14px 16px;
     border-radius: 14px;
     background: var(--pf-soft);
-    font-size: .88em;
+    font-size: 1em;
     line-height: 1.7;
 }
 
 .pf-update-notes h3 {
     margin: 0 0 8px;
-    font-size: 1em;
+    font-size: 1.05em;
     font-weight: 700;
 }
 
@@ -4774,7 +4779,7 @@
 .pf-update-notes .pf-update-group {
     margin: 8px 0 2px;
     color: var(--pf-action-text);
-    font-size: .9em;
+    font-size: .92em;
     font-weight: 700;
 }
 
@@ -4786,9 +4791,14 @@
     margin-top: 4px;
 }
 
+/* 항목 아래 하위 목록 */
+.pf-update-notes li > ul {
+    margin-top: 2px;
+}
+
 .pf-update-notes h4 {
     margin: 0 0 4px;
-    font-size: .95em;
+    font-size: 1em;
     font-weight: 700;
 }
 
@@ -5059,7 +5069,7 @@
 
 
 /* 기록 줄의 ⋯ 메뉴 — 목록 칸이 잘리므로 본문 위에 띄움 (자리는 열 때 맞춤) */
-.pf-more-menu.pf-history-menu {
+.pf-more-menu.pf-anchor-menu {
     min-width: 240px;
     max-width: calc(100% - 16px);
 }
@@ -5070,8 +5080,105 @@
 }
 
 /* ⋯ 메뉴의 삭제는 구분선 아래에 */
-.persona-forge-popup .pf-history-menu .pf-more-danger {
+.persona-forge-popup .pf-anchor-menu .pf-more-danger {
     margin-top: 4px !important;
     border-top: 1px solid var(--pf-line) !important;
     border-radius: 0 0 var(--pf-r-small) var(--pf-r-small) !important;
 }
+
+/* ===== 새 캐릭터 카드로 저장 — 그리팅 버전 고르기 ===== */
+.pf-card-greetings {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--pf-r-group);
+    background: var(--pf-soft);
+    overflow: hidden;
+}
+
+.pf-card-greeting-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    font-size: .86em;
+    cursor: pointer;
+}
+
+.pf-card-greeting-row + .pf-card-greeting-row {
+    border-top: 1px solid var(--pf-line);
+}
+
+.pf-card-greeting-num {
+    flex: none;
+    font-weight: 700;
+    color: var(--pf-muted);
+}
+
+.pf-card-greeting-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ===== 월드인포로 저장 — 저장할 곳 · 나누는 기준 · 엔트리 미리보기 ===== */
+.pf-wi-save [hidden] {
+    display: none !important;
+}
+
+.pf-wi-save-list {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--pf-r-group);
+    background: var(--pf-soft);
+    overflow: hidden;
+}
+
+.pf-wi-save-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+}
+
+.pf-wi-save-row + .pf-wi-save-row {
+    border-top: 1px solid var(--pf-line);
+}
+
+.pf-wi-save-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.pf-wi-save-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-size: .9em;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pf-wi-save-size {
+    flex: none;
+    font-size: .76em;
+    color: var(--pf-muted);
+}
+
+.pf-wi-save-opts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-left: 26px;
+}
+
+.pf-wi-save-opts .pf-wi-save-keys {
+    flex: 1 1 10em;
+    min-width: 0;
+}
+

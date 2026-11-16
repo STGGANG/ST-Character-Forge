@@ -35,6 +35,7 @@ import { splitSupportText, hasCutEdit } from './support-edits.js';
 import { bindInfoTips, closeInfoTips, closeInfoTipByEscape } from './info-tips.js';
 import { bindCompareView, openCompare, compareHandlesEscape } from './compare-view.js';
 import { makeSortable } from './field-sort.js';
+import { splitEntries, entryDefaults, firstEntryName, sanitizeBookName, uniqueBookName } from './wi-export.js';
 
 let isEditMode = false;
 
@@ -163,8 +164,25 @@ function isImeComposing(e) {
 
 // ===== 설치·업데이트 후 한 번 뜨는 안내 창 =====
 // 버전별 업데이트 내역 — 맨 앞이 지금 버전(펼쳐서), 나머지는 "이전 업데이트"로 접어 둠
-// 항목은 글 한 줄, 또는 { text, sub } (sub: 그 아래 작게 덧붙이는 설명)
+// 항목은 글 한 줄, 또는 { text, sub, items } (sub: 그 아래 작게 덧붙이는 설명, items: 그 아래 하위 목록)
 const UPDATE_HISTORY = [
+    {
+        version: '2.4.0',
+        groups: [
+            {
+                title: '기능',
+                notes: [
+                    {
+                        text: "봇 결과의 '실리태번에 저장'",
+                        items: [
+                            '새 캐릭터 카드로 저장할 때 넣을 그리팅을 고를 수 있습니다.',
+                            '만든 봇을 월드인포로 저장할 수 있으며, 월드인포로 저장할 때는 제목마다 엔트리로 나눠 미리 보고 저장합니다.',
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
     {
         version: '2.3.0',
         groups: [
@@ -258,8 +276,8 @@ const UPDATE_HISTORY = [
 
 function updateNotesHtml(notes, tag = 'ul') {
     return `<${tag}>${notes.map(note => {
-        const { text, sub } = typeof note === 'string' ? { text: note } : note;
-        return `<li>${escapeHtml(text)}${sub ? `<span class="pf-update-sub">${escapeHtml(sub)}</span>` : ''}</li>`;
+        const { text, sub, items } = typeof note === 'string' ? { text: note } : note;
+        return `<li>${escapeHtml(text)}${sub ? `<span class="pf-update-sub">${escapeHtml(sub)}</span>` : ''}${items?.length ? updateNotesHtml(items) : ''}</li>`;
     }).join('')}</${tag}>`;
 }
 
@@ -309,8 +327,8 @@ function showUpdateNoticeOnce({ force = false } = {}) {
                     <span class="pf-update-version">v${EXTENSION_VERSION}</span>
                 </div>
                 <div class="pf-update-body">
-                    ${line('female', 'smile', '이번엔 꽤 많이 손봤어요! 번역은 기록에 붙여 두고 바꿔 볼 수 있고, 다른 기록을 옆에 띄워 비교할 수도 있어요.')}
-                    ${line('male', 'shy', '제 수정 카드가 중간에 뚝 끊기던 것도 고쳤어요. 이제 바뀌는 문장만 짧게 드릴게요.')}
+                    ${line('female', 'smile', '이번엔 봇 저장을 손봤어요. 만든 봇을 월드인포로도 저장할 수 있어요.')}
+                    ${line('male', 'smile', '카드로 저장할 땐 그리팅도 골라 담을 수 있어요. 잘 뽑힌 것만 쏙쏙 챙겨 가세요!')}
                     <div class="pf-update-notes">${updateHistoryHtml()}</div>
                 </div>
                 <button type="button" class="pf-primary-btn pf-update-ok">확인</button>
@@ -343,7 +361,7 @@ export function bindUIEvents() {
         if (e.key !== 'Escape' || !$('#persona-forge-popup').hasClass('open')) return;
         if (document.querySelector('dialog[open]')) return;
         if (closeInfoTipByEscape($root[0])) return;
-        if (closeHistoryMenu({ focus: true })) return;
+        if (closeAnchorMenu({ focus: true })) return;
         if (compareHandlesEscape()) return;
         closePopup();
     });
@@ -456,7 +474,7 @@ export function bindUIEvents() {
 
     $root.on('click', (e) => {
         if (!$(e.target).closest('.pf-more-wrap').length) closeMoreMenu();
-        if (!$(e.target).closest('.pf-history-menu, .pf-history-more').length) closeHistoryMenu();
+        if (!$(e.target).closest('.pf-anchor-menu, .pf-history-more, #pf-create-card-btn').length) closeAnchorMenu();
     });
 
     $root.on('change', '#pf-wi-toggle', onWorldInfoToggle);
@@ -639,7 +657,7 @@ export function bindUIEvents() {
     $root.on('click', '#pf-view-delete', onViewDeleteTranslation);
     $root.on('click', '.pf-history-compare', onHistoryCompare);
     $root.on('click', '.pf-history-more', onHistoryMore);
-    $root.on('click', '.pf-history-menu .pf-more-item', () => closeHistoryMenu());
+    $root.on('click', '.pf-anchor-menu .pf-more-item', () => closeAnchorMenu());
 
     $root.on('click', '#pf-translate-go', onTranslateClick);
     $root.on('click', '#pf-translate-cancel', () => $('#pf-translate-panel').hide());
@@ -759,7 +777,9 @@ export function bindUIEvents() {
     $root.on('click', '#pf-greeting-prev', () => onGreetingSwipe(-1));
     $root.on('click', '#pf-greeting-next', () => onGreetingSwipe(1));
 
-    $root.on('click', '#pf-create-card-btn', onCreateCardClick);
+    $root.on('click', '#pf-create-card-btn', onBotSaveMenu);
+    $root.on('click', '.pf-save-card', onCreateCardClick);
+    $root.on('click', '.pf-save-wi', onSaveWorldInfoClick);
 
     $root.on('click', '#pf-modify-toggle-btn', () => {
         $('#pf-modify-panel').toggle();
@@ -4058,6 +4078,40 @@ async function onGreetingDelete() {
     syncGreetingToHistory();
 }
 
+// 봇 결과의 '실리태번에 저장' — 새 캐릭터 카드 또는 월드인포
+function onBotSaveMenu(e) {
+    const gen = state.currentGeneration;
+    if (!gen?.fullText) {
+        showToast('warning', '저장할 내용이 없습니다.');
+        return;
+    }
+    const split = gen.worldOnly ? '"##" 항목마다' : '"#" 제목마다';
+    toggleAnchorMenu(e, this, menuItemsHtml([
+        ['pf-save-card', 'fa-address-card', '새 캐릭터 카드로', '프로필은 설명으로, 그리팅은 첫 메시지·추가 그리팅으로'],
+        ['pf-save-wi', 'fa-book-atlas', '월드인포로', `${split} 엔트리로 나눠 새 북이나 기존 북에`],
+    ]));
+}
+
+// 카드·북 이름 기본값 — 프로필의 이름 줄, 첫 인물 제목, 직접 바꾼 기록 이름 순 (북은 기록 이름이 먼저)
+function savedName(gen, text, { recordFirst = false } = {}) {
+    const fromProfile = (gen.charName && gen.charName !== '새 캐릭터' ? gen.charName : '') || guessProfileName(text) || firstEntryName(text);
+    return (recordFirst ? gen.customTitle || fromProfile : fromProfile || gen.customTitle) || '';
+}
+
+// 그리팅 버전 고르기 줄 — 지금 보고 있는 버전은 첫 메시지(빼지 못함), 나머지는 체크하면 추가 그리팅
+function cardGreetingRowsHtml(versions, current) {
+    return versions.map((greeting, index) => {
+        const isCurrent = greeting === current;
+        const snippet = greeting.text.replace(/\s+/g, ' ').trim().slice(0, 80);
+        return `<label class="pf-card-greeting-row">
+            <input type="checkbox" data-greeting="${index}"${isCurrent ? ' checked disabled' : ''}>
+            <span class="pf-card-greeting-num">${index + 1}번</span>
+            <span class="pf-card-greeting-text">${escapeHtml(snippet)}</span>
+            ${isCurrent ? '<span class="pf-badge pf-badge-original">첫 메시지</span>' : ''}
+        </label>`;
+    }).join('');
+}
+
 async function onCreateCardClick() {
     const gen = state.currentGeneration;
     if (!gen?.fullText) {
@@ -4065,12 +4119,33 @@ async function onCreateCardClick() {
         return;
     }
 
-    const suggested = gen.charName && gen.charName !== '새 캐릭터' ? gen.charName : '';
-    const name = await askText('새 캐릭터 카드의 이름을 입력하십시오:', suggested);
-    if (!name || !name.trim()) return;
+    const suggested = savedName(gen, shownProfile(gen).text);
+    const versions = (gen.greetings?.length ? gen.greetings : [gen.greeting]).filter(greeting => greeting?.text);
+    const current = versions.includes(gen.greeting) ? gen.greeting : versions.at(-1);
+    const $body = $(`<div class="pf-modal-stack">
+        <label class="pf-modal-label" for="pf-card-name">카드 이름</label>
+        <input id="pf-card-name" class="pf-input" type="text" autocomplete="off">
+        ${versions.length > 1 ? `
+        <div class="pf-modal-label">그리팅 <span class="pf-hint-inline">— 지금 보고 있는 버전이 첫 메시지, 체크한 나머지는 추가 그리팅이 됩니다</span></div>
+        <div class="pf-card-greetings">${cardGreetingRowsHtml(versions, current)}</div>` : ''}
+    </div>`);
+    $body.find('#pf-card-name').val(suggested);
+    const ok = await pfModal({
+        title: '새 캐릭터 카드로 저장', icon: 'fa-address-card', $body, okText: '카드 만들기',
+        subtitle: versions.length ? '' : '그리팅이 없어 첫 메시지는 비어 있습니다.',
+    });
+    if (!ok) return;
+    const name = String($body.find('#pf-card-name').val() || '').trim();
+    if (!name) {
+        showToast('warning', '카드 이름을 적어 주십시오.');
+        return;
+    }
+    const alternates = versions
+        .filter((greeting, index) => greeting !== current && $body.find(`input[data-greeting="${index}"]`).prop('checked'))
+        .map(greeting => greeting.text);
 
-    const description = withProfileHeader(shownProfile(gen).text, name.trim(), { tidy: !keepsOwnTitle(gen) });
-    const firstMessage = gen.greeting?.text || '';
+    const description = withProfileHeader(shownProfile(gen).text, name, { tidy: !keepsOwnTitle(gen) });
+    const firstMessage = current?.text || '';
     const context = getContext();
 
     try {
@@ -4078,7 +4153,7 @@ async function onCreateCardClick() {
             method: 'POST',
             headers: context.getRequestHeaders(),
             body: JSON.stringify({
-                ch_name: name.trim(),
+                ch_name: name,
                 description,
                 first_mes: firstMessage,
                 personality: '',
@@ -4096,7 +4171,7 @@ async function onCreateCardClick() {
                 depth_prompt_depth: '4',
                 depth_prompt_role: 'system',
                 fav: 'false',
-                alternate_greetings: [],
+                alternate_greetings: alternates,
                 extensions: '{}',
             }),
         });
@@ -4112,13 +4187,158 @@ async function onCreateCardClick() {
             logError('refreshCharacters', error);
         }
 
-        showToast('success', `새 캐릭터 "${name.trim()}" 카드가 만들어졌습니다${firstMessage ? ' (그리팅 포함)' : ' (그리팅은 비어 있음)'}. 캐릭터 목록에서 확인하십시오.`);
+        const greetingNote = !firstMessage ? ' (그리팅은 비어 있음)' : alternates.length ? ` (그리팅 1개 + 추가 그리팅 ${alternates.length}개)` : ' (그리팅 포함)';
+        showToast('success', `새 캐릭터 "${name}" 카드가 만들어졌습니다${greetingNote}. 캐릭터 목록에서 확인하십시오.`);
     } catch (error) {
         logError('createCharacter', error);
         const copied = await copyToClipboard(description);
         showToast(copied ? 'warning' : 'error', copied
             ? `캐릭터 카드를 만들지 못했습니다 (${error.message}). 대신 프로필을 클립보드에 복사했습니다.`
             : `캐릭터 카드를 만들지 못했습니다: ${error.message}`);
+    }
+}
+
+// ===== 월드인포로 저장 — 제목마다 엔트리로 나눠 새 북이나 기존 북에 (그리팅은 넣지 않음) =====
+let wiModulePromise = null;
+let utilsModulePromise = null;
+
+function wiEntryRowHtml(entry, index) {
+    return `<div class="pf-wi-save-row" data-index="${index}">
+        <label class="pf-wi-save-head">
+            <input type="checkbox" class="pf-wi-save-include"${entry.include ? ' checked' : ''}>
+            <span class="pf-wi-save-title">${escapeHtml(entry.title || '(제목 없음)')}</span>
+            <span class="pf-wi-save-size" data-index="${index}"></span>
+        </label>
+        <div class="pf-wi-save-opts">
+            <select class="pf-select pf-select-small pf-wi-save-mode" aria-label="켜지는 방식">
+                <option value="constant"${entry.constant ? ' selected' : ''}>항상 켜짐</option>
+                <option value="keys"${entry.constant ? '' : ' selected'}>키워드가 나올 때</option>
+            </select>
+            <input class="pf-input pf-wi-save-keys" type="text" placeholder="키워드 (쉼표로 구분)" aria-label="키워드"${entry.constant ? ' hidden' : ''}>
+        </div>
+    </div>`;
+}
+
+// 새 북 이름 — 실리태번의 파일 이름 정리가 있으면 그것으로 (저장된 파일 이름과 목록 이름이 어긋나지 않게)
+async function sanitizedBookName(name) {
+    utilsModulePromise ??= import("../../../../utils.js").catch(() => ({}));
+    const utils = await utilsModulePromise;
+    let clean = sanitizeBookName(name);
+    if (clean && typeof utils.getSanitizedFilename === 'function') {
+        try { clean = (await utils.getSanitizedFilename(clean)) || clean; } catch { /* 정리 요청이 실패하면 직접 정리한 이름 */ }
+    }
+    return clean || '캐릭터 대장간';
+}
+
+async function onSaveWorldInfoClick() {
+    const gen = state.currentGeneration;
+    if (!gen?.fullText) {
+        showToast('warning', '저장할 내용이 없습니다.');
+        return;
+    }
+    wiModulePromise ??= import("../../../../world-info.js").catch(() => ({}));
+    const wi = await wiModulePromise;
+    if (typeof wi.createWorldInfoEntry !== 'function' || typeof wi.saveWorldInfo !== 'function') {
+        showToast('error', '이 실리태번 버전에서는 월드인포로 저장할 수 없습니다.');
+        return;
+    }
+    const text = shownProfile(gen).text;
+    const baseName = savedName(gen, text, { recordFirst: true }) || '캐릭터 대장간';
+    const books = [...(wi.world_names || [])];
+    let level = gen.worldOnly ? 2 : 1;
+    let entries = entryDefaults(splitEntries(text, level, baseName), level, { worldOnly: !!gen.worldOnly });
+
+    const $body = $(`<div class="pf-modal-stack pf-wi-save">
+        <div class="pf-modal-label">저장할 곳</div>
+        <span class="pf-pill-group">
+            <label class="pf-pill"><input type="radio" name="pf-wi-target" value="new" checked><span>새 북 만들기</span></label>
+            <label class="pf-pill"${books.length ? '' : ' title="아직 만든 월드인포 북이 없습니다"'}><input type="radio" name="pf-wi-target" value="existing"${books.length ? '' : ' disabled'}><span>기존 북에 추가</span></label>
+        </span>
+        <input id="pf-wi-new-name" class="pf-input" type="text" autocomplete="off" aria-label="새 북 이름">
+        <select id="pf-wi-existing" class="pf-select" aria-label="추가할 북" hidden>${books.map(book => `<option value="${escapeHtml(book)}">${escapeHtml(book)}</option>`).join('')}</select>
+        <div class="pf-modal-label">나누는 기준</div>
+        <span class="pf-pill-group">
+            <label class="pf-pill"><input type="radio" name="pf-wi-level" value="1"${level === 1 ? ' checked' : ''}><span>"#" 제목마다</span></label>
+            <label class="pf-pill"><input type="radio" name="pf-wi-level" value="2"${level === 2 ? ' checked' : ''}><span>"##" 항목마다</span></label>
+        </span>
+        <div class="pf-modal-label pf-wi-save-count"></div>
+        <div class="pf-wi-save-list"></div>
+    </div>`);
+    $body.find('#pf-wi-new-name').val(baseName);
+    let renderRevision = 0;
+    const renderList = () => {
+        const revision = ++renderRevision;
+        $body.find('.pf-wi-save-count').text(`엔트리 미리보기 · ${entries.length}개`);
+        $body.find('.pf-wi-save-list').html(entries.length
+            ? entries.map(wiEntryRowHtml).join('')
+            : '<div class="pf-field-group-empty">나눌 내용이 없습니다.</div>');
+        entries.forEach((entry, index) => {
+            $body.find(`.pf-wi-save-row[data-index="${index}"] .pf-wi-save-keys`).val(entry.keys.join(', '));
+            countTokens(entry.content).then(tokens => {
+                if (revision === renderRevision) $body.find(`.pf-wi-save-size[data-index="${index}"]`).text(`약 ${tokens.toLocaleString()}토큰`);
+            });
+        });
+    };
+    renderList();
+    $body.on('change', 'input[name="pf-wi-level"]', function () {
+        level = Number($(this).val()) === 2 ? 2 : 1;
+        entries = entryDefaults(splitEntries(text, level, baseName), level, { worldOnly: !!gen.worldOnly });
+        renderList();
+    });
+    $body.on('change', 'input[name="pf-wi-target"]', function () {
+        const existing = $(this).val() === 'existing';
+        $body.find('#pf-wi-new-name').prop('hidden', existing);
+        $body.find('#pf-wi-existing').prop('hidden', !existing);
+    });
+    $body.on('change', '.pf-wi-save-mode', function () {
+        $(this).siblings('.pf-wi-save-keys').prop('hidden', $(this).val() !== 'keys');
+    });
+
+    const ok = await pfModal({
+        title: '월드인포로 저장', icon: 'fa-book-atlas', $body, okText: '월드인포에 저장',
+        subtitle: '프로필을 나눠 엔트리로 저장합니다. 그리팅은 넣지 않습니다.',
+    });
+    if (!ok) return;
+    // 키워드를 비워 두면 켜질 일이 없으므로 항상 켜짐으로
+    const chosen = $body.find('.pf-wi-save-row').map(function () {
+        const entry = entries[Number($(this).attr('data-index'))];
+        if (!entry || !$(this).find('.pf-wi-save-include').prop('checked')) return null;
+        const keys = String($(this).find('.pf-wi-save-keys').val() || '').split(/[,，、]/).map(key => key.trim()).filter(Boolean);
+        const constant = $(this).find('.pf-wi-save-mode').val() !== 'keys' || !keys.length;
+        return { ...entry, constant, keys: constant ? [] : keys };
+    }).get();
+    if (!chosen.length) {
+        showToast('warning', '저장할 엔트리를 하나 이상 고르십시오.');
+        return;
+    }
+
+    try {
+        let name;
+        let data;
+        let renamed = false;
+        if ($body.find('input[name="pf-wi-target"]:checked').val() === 'existing') {
+            name = String($body.find('#pf-wi-existing').val() || '');
+            data = await wi.loadWorldInfo(name);
+            if (!data?.entries) throw new Error(`"${name}" 북을 읽지 못했습니다.`);
+        } else {
+            const wanted = await sanitizedBookName(String($body.find('#pf-wi-new-name').val() || '').trim() || baseName);
+            name = uniqueBookName(wanted, books);
+            renamed = name !== wanted;
+            data = { entries: {} };
+        }
+        for (const entry of chosen) {
+            const created = wi.createWorldInfoEntry(name, data);
+            if (!created) throw new Error('엔트리를 만들지 못했습니다.');
+            Object.assign(created, { comment: entry.title, content: entry.content, key: entry.keys, constant: entry.constant });
+        }
+        await wi.saveWorldInfo(name, data, true);
+        await wi.updateWorldInfoList?.();
+        // 월드인포 편집 창에 그 북이 열려 있으면 다시 읽음 (예전 내용으로 다시 저장되어 새 엔트리가 지워지지 않게)
+        wi.reloadEditor?.(name);
+        showToast('success', `월드인포 "${name}"에 엔트리 ${chosen.length}개를 저장했습니다.${renamed ? ' 같은 이름의 북이 있어 이름 뒤에 번호를 붙였습니다.' : ''}`);
+    } catch (error) {
+        logError('saveWorldInfo', error);
+        showToast('error', `월드인포에 저장하지 못했습니다: ${error.message}`);
     }
 }
 
@@ -4238,7 +4458,7 @@ async function onApplyPersonaClick() {
     }
 }
 
-// 이미 기록에 있는 결과면 "사본으로 저장" — 지금 내용을 새 기록으로 하나 더 두고, 지금 결과는 원래 기록에 이어서 저장
+// 이미 기록에 있는 결과면 "기록에 저장 (사본)" — 지금 내용을 새 기록으로 하나 더 두고, 지금 결과는 원래 기록에 이어서 저장
 async function onSaveHistoryClick() {
     const gen = state.currentGeneration;
     if (!gen) {
@@ -4273,14 +4493,14 @@ async function onSaveHistoryClick() {
     }
 }
 
-// "기록에 저장" 버튼 — 지금 결과가 기록에 있으면 "사본으로 저장" (history를 주면 그 기록이 아직 있는지도 봄)
+// "기록에 저장" 버튼 — 지금 결과가 기록에 있으면 "기록에 저장 (사본)" (history를 주면 그 기록이 아직 있는지도 봄)
 function updateSaveHistoryButton(history = null) {
     const id = state.currentGeneration?.historyId;
     const saved = !!id && (!history || history.some(item => item.id === id));
     $('#pf-save-history-btn')
         .toggleClass('pf-saved', saved)
         .attr('title', saved ? '지금 내용을 새 기록으로 하나 더 저장합니다 (지금 결과는 원래 기록에 이어서 저장)' : '지금 내용을 기록에 저장합니다')
-        .html(saved ? '<i class="fa-solid fa-copy"></i> 사본으로 저장' : '<i class="fa-solid fa-bookmark"></i> 기록에 저장');
+        .html(saved ? '<i class="fa-solid fa-bookmark"></i> 기록에 저장 (사본)' : '<i class="fa-solid fa-bookmark"></i> 기록에 저장');
 }
 
 let historyRenderRevision = 0;
@@ -4747,20 +4967,20 @@ const HISTORY_MENU_ITEMS = [
     ['pf-history-delete pf-more-danger', 'fa-trash-can', '삭제', '이 기록과 모루와의 대화를 지움'],
 ];
 
-function onHistoryMore(e) {
-    e.stopPropagation();
-    const button = this;
-    const wasOpen = button.getAttribute('aria-expanded') === 'true';
-    closeHistoryMenu();
-    if (wasOpen) return;
+function menuItemsHtml(items, id = '') {
+    return items.map(([cls, icon, label, desc]) => `
+        <button class="pf-more-item ${cls}"${id ? ` data-id="${id}"` : ''} role="menuitem" type="button"><i class="${icon.includes(' ') ? icon : `fa-solid ${icon}`}"></i><span class="pf-more-text">${label}<small>${desc}</small></span></button>`).join('');
+}
+
+// 버튼에 붙는 작은 메뉴 (기록 줄의 ⋯, 봇 결과 저장) — 목록 칸이 잘리므로 본문 위에 띄우고, 아래 자리가 모자라면 위로
+function openAnchorMenu(button, itemsHtml, { keyboard = false } = {}) {
+    closeAnchorMenu();
     const body = button.closest('.pf-body');
     if (!body) return;
-    const id = escapeHtml(String($(button).attr('data-id')));
     const menu = document.createElement('div');
-    menu.className = 'pf-more-menu pf-history-menu';
+    menu.className = 'pf-more-menu pf-anchor-menu';
     menu.setAttribute('role', 'menu');
-    menu.innerHTML = HISTORY_MENU_ITEMS.map(([cls, icon, label, desc]) => `
-        <button class="pf-more-item ${cls}" data-id="${id}" role="menuitem" type="button"><i class="${icon.includes(' ') ? icon : `fa-solid ${icon}`}"></i><span class="pf-more-text">${label}<small>${desc}</small></span></button>`).join('');
+    menu.innerHTML = itemsHtml;
     body.append(menu);
     const frame = body.getBoundingClientRect();
     const anchor = button.getBoundingClientRect();
@@ -4770,16 +4990,29 @@ function onHistoryMore(e) {
     menu.style.top = `${Math.round(top - frame.top + body.scrollTop)}px`;
     button.setAttribute('aria-expanded', 'true');
     menu.pfButton = button;
-    if (!e.detail) menu.querySelector('button')?.focus(); // 키보드로 열었을 때만
+    if (keyboard) menu.querySelector('button')?.focus();
 }
 
-function closeHistoryMenu({ focus = false } = {}) {
-    const menu = document.querySelector('#persona-forge-popup .pf-history-menu');
+function closeAnchorMenu({ focus = false } = {}) {
+    const menu = document.querySelector('#persona-forge-popup .pf-anchor-menu');
     if (!menu) return false;
     menu.pfButton?.setAttribute('aria-expanded', 'false');
     if (focus) menu.pfButton?.focus();
     menu.remove();
     return true;
+}
+
+function toggleAnchorMenu(event, button, itemsHtml) {
+    event.stopPropagation();
+    if (button.getAttribute('aria-expanded') === 'true') {
+        closeAnchorMenu();
+        return;
+    }
+    openAnchorMenu(button, itemsHtml, { keyboard: !event.detail });
+}
+
+function onHistoryMore(e) {
+    toggleAnchorMenu(e, this, menuItemsHtml(HISTORY_MENU_ITEMS, escapeHtml(String($(this).attr('data-id')))));
 }
 
 async function onHistoryCompare() {
