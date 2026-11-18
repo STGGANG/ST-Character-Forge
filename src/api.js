@@ -149,6 +149,7 @@ export async function callGenerationAPI(messages, { signal, label = '', connecti
     } catch (error) {
         record.status = 'error';
         if (signal?.aborted) throw cancelledError();
+        if (error?.ownMessage) throw error; // 이미 프로필 이름을 담은 안내 — "요청 실패:"를 덧붙이지 않음
         let detail = errorDetail(error);
         // 한 번에 받는 요청이 오래 걸리면 중계 서버·게이트웨이가 연결을 끊음 (오류 문구가 "<none>" 등으로 보임)
         if (target.kind === 'cc' && !target.stream && Date.now() - startedAt >= 90000) {
@@ -368,6 +369,30 @@ async function legacyFallback(context, target, messages, signal, textPrompt = nu
     return { text: await extractText(raw, api), truncated: detectTruncation(raw), model: responseModel(raw) };
 }
 
+// 실리태번 버그(1.19 기준): 버텍스는 로그인 키를 프로필 키가 아니라 지금 연결의 활성 키에서 읽음
+// 서비스 계정이면 프로젝트만 프로필 키에서 읽어 권한 오류, Express면 프로필 키가 무시됨 → 두 키가 다르면 보내지 않고 알림
+const VERTEX_SECRET_KEYS = { full: 'vertexai_service_account_json', express: 'api_key_vertexai' };
+
+async function checkVertexProfileKey(context, target, payload) {
+    const profileKey = target.profile?.['secret-id'];
+    if (!profileKey || target.source !== 'vertexai' || payload?.reverse_proxy) return;
+    const secretKey = VERTEX_SECRET_KEYS[payload?.vertexai_auth_mode || context.chatCompletionSettings?.vertexai_auth_mode || 'express'];
+    if (!secretKey) return;
+    let secrets;
+    try {
+        secrets = await import("../../../../secrets.js");
+        await secrets.readSecretState?.();
+    } catch {
+        return;
+    }
+    const keys = secrets?.secret_state?.[secretKey];
+    if (!Array.isArray(keys)) return; // 키를 하나만 두던 예전 실리태번
+    const active = keys.find(key => key.active);
+    if (!active || active.id === profileKey) return;
+    const profileLabel = keys.find(key => key.id === profileKey)?.label || '지워진 키';
+    throw Object.assign(new Error(`지금 연결과 연결 프로필 ‘${target.profile.name}’의 버텍스 키가 같아야 합니다. (지금 연결: ${active.label} / 프로필: ${profileLabel}) 실리태번 API 연결에서 같은 키를 고르거나, 같은 키를 쓰는 연결 프로필로 바꿔 주십시오.`), { ownMessage: true });
+}
+
 // Chat Completion — 실리태번 설정(모델·프록시·샘플러)은 사용하되 메시지는 가공하지 않음
 async function sendChatCompletion(context, target, messages, signal) {
     const service = context.ChatCompletionService;
@@ -399,6 +424,7 @@ async function sendChatCompletion(context, target, messages, signal) {
 
     log(`Sending via ${target.label}${target.stream ? ' (streaming)' : ''}`);
     const payload = await service.presetToGeneratePayload(target.preset || {}, {}, base);
+    await checkVertexProfileKey(context, target, payload);
     if (!Array.isArray(payload?.messages)) return legacyFallback(context, target, messages, signal);
 
     payload.stream = !!target.stream;
