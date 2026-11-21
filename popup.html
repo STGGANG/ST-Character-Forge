@@ -46,7 +46,7 @@
                 <span class="pf-tab-label">설정</span>
             </button>
             <button class="pf-tab" data-tab="generate" role="tab">
-                <span class="pf-tab-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+                <span class="pf-tab-icon"><i class="fa-solid fa-hammer"></i></span>
                 <span class="pf-tab-label">생성</span>
                 <span class="pf-tab-dot"></span>
             </button>
@@ -99,7 +99,7 @@
                             <input type="text" id="pf-persona-manual-name" class="pf-input"
                                 placeholder="페르소나 이름 (비워도 됩니다)">
                             <textarea id="pf-persona-manual-desc" class="pf-textarea" rows="5"
-                                placeholder="참고할 페르소나 설명을 붙여 넣거나 직접 적어 주십시오..."></textarea>
+                                placeholder="참고할 페르소나 설명을 붙여 넣거나 직접 적어 주십시오"></textarea>
                         </div>
 
                         <div class="pf-row pf-row-stack">
@@ -115,7 +115,7 @@
                                 </span>
                             </span>
                             <span class="pf-row-ctrl pf-char-pick">
-                                <input type="search" id="pf-char-search" class="pf-input" placeholder="캐릭터 이름 검색..."
+                                <input type="search" id="pf-char-search" class="pf-input" placeholder="캐릭터 이름 검색"
                                     autocomplete="off">
                                 <div id="pf-char-results" class="pf-char-results" style="display: none;"></div>
                                 <select id="pf-char-select" class="pf-select">
@@ -127,7 +127,7 @@
                         <div id="pf-manual-panel" class="pf-sub pf-manual-panel" style="display: none;">
                             <input type="text" id="pf-manual-name" class="pf-input" placeholder="캐릭터 이름 (비워도 됩니다)">
                             <textarea id="pf-manual-desc" class="pf-textarea" rows="6"
-                                placeholder="기존 캐릭터의 설정을 붙여넣거나 직접 적어 주십시오...&#10;예: 외모, 성격, 말투, 세계관, {{user}}와의 관계 등"></textarea>
+                                placeholder="기존 캐릭터의 설정을 붙여넣거나 직접 적어 주십시오&#10;예: 외모, 성격, 말투, 세계관, {{user}}와의 관계 등"></textarea>
                         </div>
 
                         <div id="pf-card-fields" class="pf-sub pf-card-fields">
@@ -156,7 +156,7 @@
                         </label>
                         <div id="pf-wi-container" class="pf-sub" style="display: none;">
                             <div class="pf-wi-toolbar">
-                                <input type="search" id="pf-wi-search" class="pf-input" placeholder="월드인포·항목 검색...">
+                                <input type="search" id="pf-wi-search" class="pf-input" placeholder="월드인포·항목 검색">
                                 <button id="pf-wi-reload" class="pf-btn pf-small-btn pf-icon-only" title="목록 새로 읽기">
                                     <i class="fa-solid fa-rotate"></i>
                                 </button>
@@ -192,7 +192,7 @@
                         </label>
                         <div id="pf-guided-input" class="pf-sub" style="display: none;">
                             <textarea id="pf-concept-text" class="pf-textarea" rows="4"
-                                placeholder="원하는 캐릭터 컨셉을 입력하십시오...&#10;예: 시골에서 올라온 순진한 대학생, 호기심이 많지만 세상물정을 잘 모르는 성격&#10;예: 쿨하고 무관심해 보이지만 속은 따뜻한 직장인"></textarea>
+                                placeholder="원하는 캐릭터 컨셉을 입력하십시오&#10;예: 시골에서 올라온 순진한 대학생, 호기심이 많지만 세상물정을 잘 모르는 성격&#10;예: 쿨하고 무관심해 보이지만 속은 따뜻한 직장인"></textarea>
                             <div class="pf-hint" data-pf-mode="bot">참고 자료와 다르면 컨셉을 우선합니다. 기존 캐릭터를 어떻게 쓸지(같은 세계의 새 인물, 얽힌
                                 인물 등)도 여기에 적어 주십시오.</div>
                         </div>
@@ -288,7 +288,7 @@
 
                         <div id="pf-sheet-panel" class="pf-sub" style="display: none;">
                             <textarea id="pf-sheet-text" class="pf-textarea" rows="8"
-                                placeholder="여기에 프로필 시트 양식을 붙여 넣으십시오...&#10;&#10;예:&#10;【이름】&#10;【나이/성별】&#10;【외모】&#10;【성격】&#10;【배경】&#10;...&#10;&#10;어떤 양식이든 AI가 그대로 따릅니다."></textarea>
+                                placeholder="여기에 프로필 시트 양식을 붙여 넣으십시오&#10;&#10;예:&#10;【이름】&#10;【나이/성별】&#10;【외모】&#10;【성격】&#10;【배경】&#10;...&#10;&#10;어떤 양식이든 AI가 그대로 따릅니다."></textarea>
                         </div>
 
                         <div class="pf-row">
@@ -587,7 +587,7 @@
 
                     <div id="pf-regen-all-panel" class="pf-inline-panel" style="display: none;">
                         <textarea id="pf-regen-all-instructions" class="pf-textarea" rows="2"
-                            placeholder="새 지시사항 (선택)... 기존에 작성한 컨셉과 설정으로 처음부터 다시 만듭니다. 여기 적은 지시는 이번 재생성에만 추가 지시로 쓰입니다."></textarea>
+                            placeholder="새 지시사항 (선택) — 기존에 작성한 컨셉과 설정으로 처음부터 다시 만듭니다. 여기 적은 지시는 이번 재생성에만 추가 지시로 쓰입니다."></textarea>
                         <div class="pf-inline-panel-actions">
                             <button id="pf-regen-all-cancel" class="pf-btn pf-small-btn">취소</button>
                             <button id="pf-regen-all-go" class="pf-primary-btn pf-small-btn">재생성</button>
@@ -636,7 +636,7 @@
                                 class="fa-solid fa-pen-to-square"></i> 현재 프로필 기반 수정 지시</button>
                         <div id="pf-modify-panel" class="pf-inline-panel" style="display: none;">
                             <textarea id="pf-modify-instructions" class="pf-textarea" rows="3"
-                                placeholder="수정할 내용을 자유롭게 입력하십시오...&#10;예: 나머지는 그대로 두고 이름만 전부 A로 바꿔줘&#10;예: 성격을 좀 더 쿨하게 바꿔줘"></textarea>
+                                placeholder="수정할 내용을 자유롭게 입력하십시오&#10;예: 나머지는 그대로 두고 이름만 전부 A로 바꿔줘&#10;예: 성격을 좀 더 쿨하게 바꿔줘"></textarea>
                             <div class="pf-inline-panel-actions">
                                 <button id="pf-modify-cancel" class="pf-btn pf-small-btn">취소</button>
                                 <button id="pf-modify-go" class="pf-primary-btn pf-small-btn">수정 실행</button>
@@ -776,7 +776,7 @@
                                     class="fa-solid fa-pen-to-square"></i> 현재 그리팅 기반 수정 지시</button>
                             <div id="pf-greeting-modify-panel" class="pf-inline-panel" style="display: none;">
                                 <textarea id="pf-greeting-modify-instructions" class="pf-textarea" rows="3"
-                                    placeholder="고칠 내용을 자유롭게 입력하십시오...&#10;예: 마지막 문단만 더 긴장감 있게 바꿔줘&#10;예: 대사를 반말로 바꾸고, 나머지는 그대로 둬"></textarea>
+                                    placeholder="고칠 내용을 자유롭게 입력하십시오&#10;예: 마지막 문단만 더 긴장감 있게 바꿔줘&#10;예: 대사를 반말로 바꾸고, 나머지는 그대로 둬"></textarea>
                                 <div class="pf-inline-panel-actions">
                                     <button id="pf-greeting-modify-cancel" class="pf-btn pf-small-btn">취소</button>
                                     <button id="pf-greeting-modify-go" class="pf-primary-btn pf-small-btn">수정
@@ -843,7 +843,7 @@
                                 <label class="pf-support-setting pf-support-setting-top">
                                     <span>자기소개</span>
                                     <textarea id="pf-support-userintro" class="pf-textarea" rows="2"
-                                        placeholder="자신을 소개하세요... (적은 분량 추천)"></textarea>
+                                        placeholder="자신을 소개하세요 (적은 분량 추천)"></textarea>
                                 </label>
                                 <div class="pf-support-setting">
                                     <span>대화 상대 (이 대화)</span>
@@ -869,7 +869,7 @@
                             <div id="pf-support-log" class="pf-support-log" aria-live="polite"></div>
                             <div class="pf-support-input">
                                 <textarea id="pf-support-text" class="pf-textarea" rows="1"
-                                    placeholder="메시지 입력... (Enter 줄바꿈 · Ctrl+Enter 보내기)"></textarea>
+                                    placeholder="메시지 입력 (Enter 줄바꿈 · Ctrl+Enter 보내기)"></textarea>
                                 <button id="pf-support-send" class="pf-primary-btn pf-support-send" type="button"
                                     title="보내기"><i class="fa-solid fa-paper-plane"></i></button>
                             </div>
@@ -889,7 +889,7 @@
                     <div class="pf-history-search-row">
                         <div class="pf-search-wrap">
                             <i class="fa-solid fa-magnifying-glass"></i>
-                            <input type="text" id="pf-history-search" class="pf-input" placeholder="이름 또는 캐릭터명 검색...">
+                            <input type="text" id="pf-history-search" class="pf-input" placeholder="이름 또는 캐릭터명 검색">
                         </div>
                         <button id="pf-history-add" class="pf-btn" title="직접 작성한 프로필을 기록에 추가 (번역·수정 기능을 쓸 수 있습니다)">
                             <i class="fa-solid fa-plus"></i> 직접 추가
@@ -909,7 +909,7 @@
                                 class="pf-select pf-select-small pf-language-select"></select>
                         </div>
                         <textarea id="pf-history-add-text" class="pf-textarea" rows="8"
-                            placeholder="저장할 프로필을 붙여 넣으십시오...&#10;## 헤더가 있으면 섹션별로 나뉘고, 없으면 한 덩어리로 보입니다."></textarea>
+                            placeholder="저장할 프로필을 붙여 넣으십시오&#10;## 헤더가 있으면 섹션별로 나뉘고, 없으면 한 덩어리로 보입니다."></textarea>
                         <div class="pf-inline-panel-actions">
                             <button id="pf-history-add-cancel" class="pf-btn pf-small-btn">취소</button>
                             <button id="pf-history-add-save" class="pf-primary-btn pf-small-btn"><i
@@ -992,7 +992,7 @@
                             <select id="pf-guidelines-place" class="pf-select"></select>
                         </div>
                         <textarea id="pf-prompt-editor" class="pf-textarea pf-code" rows="14"
-                            placeholder="비워 두면 이 블록을 넣지 않습니다..."></textarea>
+                            placeholder="비워 두면 이 블록을 넣지 않습니다"></textarea>
                         <div class="pf-prompt-actions">
                             <span id="pf-prompt-status" class="pf-prompt-status"></span>
                             <button id="pf-prompt-reset" class="pf-btn pf-small-btn" title="이 프롬프트를 기본값으로 복원">
@@ -1016,7 +1016,7 @@
                     <div class="pf-group-body pf-group-pad">
                         <div class="pf-prompt-preset-row">
                             <select id="pf-prompt-preset-select" class="pf-select">
-                                <option value="">프리셋을 선택하십시오...</option>
+                                <option value="">프리셋을 선택하십시오</option>
                             </select>
                             <button id="pf-prompt-preset-load" class="pf-btn pf-small-btn pf-icon-only"
                                 title="선택한 프리셋 불러오기">
@@ -1028,7 +1028,7 @@
                             </button>
                         </div>
                         <div class="pf-prompt-preset-row">
-                            <input type="text" id="pf-prompt-preset-name" class="pf-input" placeholder="프리셋 이름...">
+                            <input type="text" id="pf-prompt-preset-name" class="pf-input" placeholder="프리셋 이름">
                             <button id="pf-prompt-preset-save" class="pf-primary-btn pf-small-btn"
                                 title="현재 프롬프트를 프리셋으로 저장">
                                 <i class="fa-solid fa-floppy-disk"></i> 저장

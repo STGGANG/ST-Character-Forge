@@ -31,8 +31,6 @@
 
     /* 주요 실행 버튼 색 — 지금 모드 색(페르소나 청록 / 봇 보라). 테마 강조색이 글자색과 같아도 구분되게 고정 색을 씀 */
     --pf-mode-color: #2fb5a0;
-    --pf-logo-from: #47cbb6;
-    --pf-logo-to: #1b8a7a;
     --pf-action-text: color-mix(in srgb, var(--pf-mode-color) 72%, var(--pf-fg));
     --pf-action-soft: color-mix(in srgb, var(--pf-mode-color) 16%, transparent);
     --pf-action-soft2: color-mix(in srgb, var(--pf-mode-color) 26%, transparent);
@@ -162,7 +160,6 @@
     overflow: hidden;
     /* 글자 크기 설정(화면 → 글자 크기)에 따라 배율 — 창 안의 글자·간격은 모두 이 크기를 기준으로 */
     font-size: calc(var(--pf-fs) * var(--pf-ui-scale, 1));
-    letter-spacing: -0.005em;
     text-align: left;
     animation: pf-rise .22s cubic-bezier(.2, .8, .3, 1);
 }
@@ -198,8 +195,7 @@
     width: 36px;
     height: 36px;
     border-radius: 11px;
-    /* 다른 곳(모드 버튼·실행 버튼)처럼 옅은 반투명 — 파스텔 느낌 */
-    background: linear-gradient(135deg, color-mix(in srgb, var(--pf-logo-from) 34%, transparent), color-mix(in srgb, var(--pf-logo-to) 20%, transparent));
+    background: var(--pf-action-soft2);
     font-size: 16px;
     cursor: default;
     -webkit-user-select: none;
@@ -225,8 +221,8 @@
 
 .pf-mode-control {
     display: flex;
-    gap: 3px;
-    padding: 3px;
+    gap: 4px;
+    padding: 4px;
     margin-right: 4px;
     border-radius: 12px;
     background: var(--pf-soft);
@@ -255,8 +251,6 @@
 
 .persona-forge-popup.pf-mode-bot {
     --pf-mode-color: #a585ff;
-    --pf-logo-from: #b9a0ff;
-    --pf-logo-to: #7656dd;
 }
 
 /* 지금 모드를 색으로 구분 (페르소나: 청록 / 봇: 보라) */
@@ -316,7 +310,7 @@
     margin-bottom: 4px;
     border-bottom: 1px solid var(--pf-line);
     font-size: .76em;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--pf-muted);
 }
 
@@ -332,7 +326,7 @@
     align-items: center;
     gap: 10px;
     width: 100%;
-    padding: 9px 10px !important;
+    padding: 8px 12px !important;
     margin: 0 !important;
     border: 0 !important;
     border-radius: var(--pf-r-small) !important;
@@ -398,7 +392,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
+    gap: 8px;
     min-width: 0;
     height: 40px;
     padding: 0 6px !important;
@@ -422,7 +416,11 @@
 }
 
 .persona-forge-popup .pf-tab.active {
-    background: var(--pf-accent-soft) !important;
+    background: var(--pf-soft2) !important;
+    color: var(--pf-fg) !important;
+}
+
+.persona-forge-popup .pf-tab.active .pf-tab-icon > i {
     color: var(--pf-accent) !important;
 }
 
@@ -491,7 +489,7 @@
     gap: 8px;
     width: calc(100% - 36px);
     margin: 12px 18px 0 !important;
-    padding: 9px 12px !important;
+    padding: 8px 12px !important;
     border: 0 !important;
     border-radius: var(--pf-r-control) !important;
     /* 아래 내용이 비치지 않게 창 바탕 위에 강조색을 겹침 */
@@ -563,10 +561,9 @@
     margin: 0 4px 8px !important;
     padding: 0;
     font-size: .78em !important;
-    font-weight: 700 !important;
+    font-weight: 600 !important;
     line-height: 1.4;
     color: var(--pf-muted);
-    letter-spacing: .02em;
 }
 
 .pf-group-body {
@@ -620,13 +617,13 @@
     width: 32px;
     height: 32px;
     border-radius: 10px;
-    background: var(--pf-accent-soft);
-    color: var(--pf-accent);
+    background: var(--pf-soft2);
+    color: var(--pf-muted);
     font-size: .9em;
 }
 
 .persona-forge-popup .pf-row-icon > i {
-    color: var(--pf-accent);
+    color: var(--pf-muted);
 }
 
 .pf-row-text {
@@ -804,7 +801,7 @@
     display: block;
     width: 100%;
     margin: 0 !important;
-    padding: 9px 12px !important;
+    padding: 8px 12px !important;
     border: 0 !important;
     border-radius: 0 !important;
     background: transparent !important;
@@ -829,7 +826,7 @@
 
 .persona-forge-popup .pf-char-result.selected {
     color: var(--pf-accent) !important;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .persona-forge-popup .pf-char-result-more {
@@ -838,7 +835,7 @@
 }
 
 .pf-char-result-empty {
-    padding: 9px 12px;
+    padding: 8px 12px;
     font-size: .86em;
     color: var(--pf-muted);
 }
@@ -1120,7 +1117,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
+    gap: 8px;
     height: var(--pf-control-h);
     min-width: 0;
     padding: 0 14px !important;
@@ -1175,7 +1172,7 @@
 .persona-forge-popup .pf-btn.pf-small-btn,
 .persona-forge-popup .pf-primary-btn.pf-small-btn {
     height: 30px;
-    padding: 0 11px !important;
+    padding: 0 12px !important;
     border-radius: 9px !important;
     font-size: .8em !important;
 }
@@ -1357,7 +1354,7 @@
     z-index: 60;
     width: max-content;
     max-width: min(320px, calc(100vw - 48px));
-    padding: 11px 13px;
+    padding: 12px;
     background: var(--pf-surface-solid);
     border: 1px solid var(--pf-line-strong);
     border-radius: 12px;
@@ -1405,7 +1402,7 @@
 .pf-info-bubble > ul {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 4px;
     margin: 0;
     padding: 0 0 0 1.05em;
     list-style: disc;
@@ -1447,7 +1444,7 @@
 .persona-forge-popup .pf-disclosure-btn {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     width: 100%;
     padding: 6px 2px !important;
     margin: 0 !important;
@@ -1495,8 +1492,8 @@
 .persona-forge-popup .pf-card-field {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 7px 8px;
+    gap: 8px;
+    padding: 8px;
     border-radius: var(--pf-r-small);
     font-size: .84em;
     cursor: pointer;
@@ -1568,7 +1565,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 9px 10px 9px 12px;
+    padding: 8px 10px 8px 12px;
 }
 
 .persona-forge-popup .pf-wi-book-label {
@@ -1711,7 +1708,7 @@
 }
 
 .pf-wi-entry-name {
-    margin-bottom: 3px;
+    margin-bottom: 4px;
     font-weight: 600;
     overflow-wrap: anywhere;
 }
@@ -1719,7 +1716,7 @@
 .pf-wi-entry-keys {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     margin-bottom: 2px;
     font-size: .9em;
     color: var(--pf-faint);
@@ -1751,8 +1748,8 @@
 .pf-field-tag {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 3px 10px;
+    gap: 4px;
+    padding: 4px 10px;
     border-radius: 999px;
     background: var(--pf-soft2);
     font-size: .76em;
@@ -1762,7 +1759,7 @@
 
 .persona-forge-popup .pf-field-tag > i {
     font-size: .9em;
-    color: var(--pf-accent);
+    color: var(--pf-muted);
 }
 
 .pf-field-tag.nsfw {
@@ -1782,7 +1779,7 @@
     gap: 8px;
     margin-bottom: 10px;
     font-size: .8em;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--pf-muted);
 }
 
@@ -1795,7 +1792,7 @@
 .pf-field-group-label {
     margin: 12px 2px 6px;
     font-size: .76em;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--pf-muted);
 }
 
@@ -1823,7 +1820,7 @@
 .pf-custom-field-item {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
     padding: 8px 10px;
     font-size: .86em;
     transition: background var(--pf-ease);
@@ -1848,7 +1845,7 @@
 .persona-forge-popup .pf-field-check {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 8px;
     flex: 1;
     min-width: 0;
     cursor: pointer;
@@ -1861,7 +1858,7 @@
 }
 
 .persona-forge-popup .pf-field-icon > i {
-    color: var(--pf-accent);
+    color: var(--pf-muted);
 }
 
 .pf-field-name {
@@ -1884,7 +1881,7 @@
 .pf-field-modified-badge {
     margin-left: 2px;
     color: var(--pf-accent);
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .pf-field-item-actions {
@@ -1914,12 +1911,12 @@
     flex: none;
     min-width: 20px;
     height: 20px;
-    padding: 0 5px;
+    padding: 0 6px;
     border-radius: 999px;
     background: var(--pf-accent-soft);
     color: var(--pf-accent);
     font-size: .78em;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 20px;
     text-align: center;
 }
@@ -1968,7 +1965,7 @@
 
 .persona-forge-popup .pf-textarea.pf-autogrow {
     min-height: var(--pf-control-h);
-    padding: 7px 12px !important;
+    padding: 8px 12px !important;
     line-height: 1.45 !important;
     resize: none;
     overflow: hidden;
@@ -2179,7 +2176,7 @@
 .pf-result-char {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     min-width: 0;
     font-size: 1.05em;
     font-weight: 700;
@@ -2265,7 +2262,7 @@
 
 .pf-result-concept-label {
     flex: none;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .pf-result-concept-preview {
@@ -2294,13 +2291,13 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     margin: -2px 4px 0;
 }
 
 .pf-result-badges .pf-badge {
     height: auto;
-    padding: 2px 9px;
+    padding: 2px 8px;
     font-size: .74em;
     font-weight: 600;
     line-height: 1.5;
@@ -2313,7 +2310,7 @@
 .pf-result-badge {
     max-width: 100%;
     overflow: hidden;
-    padding: 2px 9px;
+    padding: 2px 8px;
     border-radius: 999px;
     background: var(--pf-soft2);
     font-size: .74em;
@@ -2389,7 +2386,7 @@
 }
 
 .pf-view-bar .pf-pill span .fa-triangle-exclamation {
-    margin-left: 5px;
+    margin-left: 4px;
     color: var(--pf-warning);
     font-size: .9em;
 }
@@ -2417,7 +2414,7 @@
 .pf-view-stale {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     color: var(--pf-warning);
     font-weight: 600;
 }
@@ -2436,7 +2433,7 @@
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    padding: 11px 13px;
+    padding: 12px;
     border-radius: 12px;
     background: var(--pf-warning-soft);
     font-size: .84em;
@@ -2486,7 +2483,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 9px 8px 0 14px;
+    padding: 8px 8px 0 14px;
 }
 
 .pf-section-icon {
@@ -2496,20 +2493,19 @@
     width: 24px;
     height: 24px;
     border-radius: 8px;
-    background: var(--pf-accent-soft);
+    background: var(--pf-soft2);
     font-size: .75em;
 }
 
 .persona-forge-popup .pf-section-icon > i {
-    color: var(--pf-accent);
+    color: var(--pf-muted);
 }
 
 .pf-section-label {
     flex: 1;
     min-width: 0;
     font-size: .78em;
-    font-weight: 700;
-    letter-spacing: .04em;
+    font-weight: 600;
     color: var(--pf-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2540,7 +2536,7 @@
     width: 100%;
     min-height: 56px;
     margin: 0 !important;
-    padding: 9px 12px !important;
+    padding: 10px 12px !important;
     border: 1px solid var(--pf-line) !important;
     border-radius: var(--pf-r-control) !important;
     background: var(--pf-soft) !important;
@@ -2566,7 +2562,7 @@
 
 .persona-forge-popup .pf-section-regen-actions .pf-section-regen-cancel {
     height: 30px;
-    padding: 0 11px !important;
+    padding: 0 12px !important;
     margin: 0 !important;
     border: 1px solid var(--pf-line) !important;
     border-radius: 9px !important;
@@ -2608,7 +2604,7 @@
 .pf-option-label {
     flex: 0 0 34px;
     font-size: .8em;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--pf-muted);
 }
 
@@ -2620,7 +2616,7 @@
 .pf-pill-group {
     display: flex;
     flex-wrap: wrap;
-    gap: 5px;
+    gap: 4px;
 }
 
 .persona-forge-popup .pf-pill {
@@ -2748,8 +2744,8 @@
 /* 프롬프트 탭 — 페르소나 / 봇 / 서포터 묶음 */
 .pf-prompt-scope {
     display: flex;
-    gap: 3px;
-    padding: 3px;
+    gap: 4px;
+    padding: 4px;
     border-radius: var(--pf-r-control);
     background: var(--pf-soft);
 }
@@ -2868,7 +2864,7 @@
 
 .pf-support-title {
     font-size: .95em;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .pf-support-sub {
@@ -3128,7 +3124,7 @@
 .pf-support-name {
     margin: 1px 0 2px 2px;
     font-size: .78em;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--pf-muted);
 }
 
@@ -3140,7 +3136,7 @@
 .pf-support-group {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
     min-width: 0;
 }
 
@@ -3193,7 +3189,7 @@
 }
 
 .pf-support-bubble {
-    padding: 9px 13px;
+    padding: 10px 14px;
     border-radius: 18px;
     background: var(--pf-soft2);
     font-size: .9em;
@@ -3213,7 +3209,7 @@
 
 .persona-forge-popup .pf-support-bubble code {
     color: inherit !important;
-    padding: 1px 5px;
+    padding: 1px 4px;
     border-radius: 5px;
     background: color-mix(in srgb, var(--pf-fg) 12%, transparent);
     font-family: var(--pf-mono);
@@ -3298,7 +3294,7 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 4px 7px;
+    gap: 4px 8px;
     min-width: 0;
     font-weight: 700;
     color: var(--pf-action-text);
@@ -3339,7 +3335,7 @@
 .pf-support-edit-label {
     margin-top: 2px;
     font-size: .8em;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--pf-muted);
 }
 
@@ -3427,7 +3423,7 @@
 
 .pf-support-applied {
     font-size: .92em;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--pf-action-text);
 }
 
@@ -3470,8 +3466,8 @@
 .pf-support-stopped {
     display: flex;
     align-items: flex-start;
-    gap: 7px;
-    padding: 7px 10px;
+    gap: 8px;
+    padding: 8px 10px;
     border-radius: 10px;
     background: var(--pf-warning-soft);
     color: var(--pf-fg);
@@ -3539,7 +3535,7 @@
     width: 100%;
     min-height: 44px;
     resize: none;
-    padding: 9px 13px !important;
+    padding: 10px 14px !important;
     border-radius: 16px !important;
     font-size: .9em;
     line-height: 1.6 !important;
@@ -3575,7 +3571,7 @@
     max-height: 140px;
     resize: none;
     border-radius: 20px !important;
-    padding: 9px 14px !important;
+    padding: 10px 14px !important;
     line-height: 1.5 !important;
 }
 
@@ -3595,7 +3591,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 2px 7px;
+    gap: 2px 8px;
     margin: 0 2px -8px;
     font-size: .82em;
     color: var(--pf-muted);
@@ -3606,7 +3602,7 @@
 }
 
 .pf-forge-rank-name {
-    font-weight: 700;
+    font-weight: 600;
     color: var(--pf-fg);
 }
 
@@ -3853,7 +3849,7 @@
 .pf-history-count {
     margin-right: auto;
     font-size: .8em;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--pf-muted);
 }
 
@@ -3909,13 +3905,12 @@
     align-items: center;
     flex: none;
     height: 1.55em;
-    padding: 0 7px;
+    padding: 0 8px;
     border-radius: 999px;
     background: color-mix(in srgb, var(--pf-badge-color, var(--pf-fg)) 16%, transparent);
     color: var(--pf-badge-color, var(--pf-muted));
     font-size: .7em;
-    font-weight: 700;
-    letter-spacing: .02em;
+    font-weight: 600;
     line-height: 1;
     white-space: nowrap;
 }
@@ -4067,16 +4062,16 @@
 }
 
 .pf-preview-role {
-    margin-bottom: 5px;
+    margin-bottom: 4px;
     font-size: .76em;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--pf-accent);
 }
 
 .persona-forge-popup pre.pf-preview-text {
     max-height: 320px;
     margin: 0;
-    padding: 9px 11px;
+    padding: 8px 12px;
     overflow: auto;
     border-radius: var(--pf-r-small);
     background: var(--pf-soft);
@@ -4098,7 +4093,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 11px 14px;
+    padding: 12px 14px;
     cursor: pointer;
 }
 
@@ -4143,12 +4138,12 @@
 .pf-structure-group {
     margin: 8px 2px 2px;
     font-size: .76em;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--pf-muted);
 }
 
 .pf-structure-item {
-    padding: 9px 11px;
+    padding: 8px 12px;
     border-radius: 11px;
     background: var(--pf-soft);
 }
@@ -4171,7 +4166,7 @@
     border-radius: 999px;
     background: var(--pf-soft2);
     font-size: .8em;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 20px;
     text-align: center;
 }
@@ -4181,7 +4176,7 @@
 }
 
 .pf-structure-badge {
-    padding: 1px 7px;
+    padding: 1px 8px;
     border-radius: 999px;
     background: var(--pf-soft2);
     font-size: .76em;
@@ -4274,7 +4269,7 @@
     top: -6px;
     left: 30px;
     font-size: .7em;
-    font-weight: 800;
+    font-weight: 700;
     color: var(--pf-accent);
     white-space: nowrap;
     pointer-events: none;
@@ -4342,13 +4337,13 @@
 /* 숨은 칭호를 막 얻었을 때 */
 .pf-moru-cameo-badge {
     align-self: flex-start;
-    margin-top: 5px;
-    padding: 1px 9px;
+    margin-top: 4px;
+    padding: 1px 8px;
     border-radius: 999px;
     background: var(--pf-action-soft);
     color: var(--pf-action-text);
     font-size: .76em;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 @keyframes pf-cameo-in {
@@ -4471,8 +4466,7 @@
     flex: none;
     margin: 0 0 2px;
     font-size: 1.1em;
-    font-weight: 800;
-    letter-spacing: -0.02em;
+    font-weight: 700;
     color: var(--pf-fg);
 }
 
@@ -4492,7 +4486,7 @@
 .pf-modal-label {
     margin: 4px 4px 0;
     font-size: .78em;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--pf-muted);
 }
 
@@ -4570,11 +4564,11 @@
     }
 
     .pf-title {
-        gap: 7px;
+        gap: 8px;
     }
 
     .persona-forge-popup .pf-mode-control button {
-        padding: 0 9px !important;
+        padding: 0 8px !important;
     }
 
     .pf-tab-bar {
@@ -4584,7 +4578,7 @@
 
     .persona-forge-popup .pf-tab {
         flex-direction: column;
-        gap: 3px;
+        gap: 4px;
         height: 50px;
         font-size: .74em !important;
         border-radius: 10px !important;
@@ -4738,7 +4732,7 @@
 .pf-update-title {
     margin: 0;
     font-size: 1.25em;
-    font-weight: 800;
+    font-weight: 700;
     letter-spacing: -0.03em;
 }
 
@@ -4749,7 +4743,7 @@
     background: var(--pf-action-soft);
     color: var(--pf-action-text);
     font-size: .78em;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .pf-update-card .pf-support-stack {
@@ -4780,7 +4774,7 @@
     margin: 8px 0 2px;
     color: var(--pf-action-text);
     font-size: .92em;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .pf-update-notes h4 + .pf-update-group {
@@ -4856,7 +4850,7 @@
     background: var(--pf-chip-fill) !important;
     color: #fff !important;
     font-size: .8em;
-    font-weight: 700;
+    font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
     transition: background var(--pf-ease), color var(--pf-ease);
@@ -4898,7 +4892,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 9px 8px 8px 12px;
+    padding: 8px 8px 8px 12px;
     border-bottom: 1px solid var(--pf-line);
     cursor: grab;
     user-select: none;
@@ -4925,7 +4919,7 @@
 }
 
 .pf-compare-title > i {
-    margin-right: 5px;
+    margin-right: 6px;
     color: var(--pf-action-text);
 }
 
@@ -4967,7 +4961,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
-    padding: 9px 12px 10px;
+    padding: 10px 12px;
     border-bottom: 1px solid var(--pf-line);
 }
 
@@ -4987,7 +4981,7 @@
 .pf-compare-readonly {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     margin-left: auto;
     color: var(--pf-faint);
     font-size: .76em;
@@ -5013,11 +5007,11 @@
 
 .pf-compare-name {
     font-size: 1.05em;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .pf-compare-sec {
-    padding: 9px 11px;
+    padding: 8px 12px;
     border-radius: 12px;
     background: var(--pf-soft);
 }
@@ -5026,8 +5020,7 @@
     margin-bottom: 4px;
     color: var(--pf-muted);
     font-size: .76em;
-    font-weight: 700;
-    letter-spacing: .02em;
+    font-weight: 600;
 }
 
 .pf-compare-text {
@@ -5099,7 +5092,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 9px 12px;
+    padding: 10px 12px;
     font-size: .86em;
     cursor: pointer;
 }
@@ -5110,7 +5103,7 @@
 
 .pf-card-greeting-num {
     flex: none;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--pf-muted);
 }
 
@@ -5164,7 +5157,7 @@
     min-width: 0;
     overflow: hidden;
     font-size: .9em;
-    font-weight: 700;
+    font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -5194,10 +5187,10 @@
     display: inline-flex;
     flex: none;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     height: 24px;
     margin: 0;
-    padding: 0 9px;
+    padding: 0 8px;
     border: 0;
     border-radius: 999px;
     background: var(--pf-soft2);
@@ -5236,7 +5229,7 @@
     min-width: 0;
     overflow: hidden;
     font-size: .9em;
-    font-weight: 700;
+    font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
 }

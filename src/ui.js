@@ -100,10 +100,10 @@ const LONG_WAIT_TEXTS = [
     [420, '대장장이가 유난히 공들이는 중입니다.'],
 ];
 const DONE_TEXTS = {
-    persona: ['페르소나가 완성되었습니다!', '갓 벼려낸 페르소나가 나왔습니다!', '따끈한 페르소나가 모루에서 내려왔습니다!'],
-    bot: ['봇 캐릭터가 완성되었습니다!', '갓 벼려낸 캐릭터가 나왔습니다!', '따끈한 캐릭터가 모루에서 내려왔습니다!'],
-    world: ['세계관이 완성되었습니다!', '갓 벼려낸 세계가 나왔습니다!', '따끈한 세계가 모루에서 내려왔습니다!'],
-    greeting: ['그리팅을 만들었습니다!', '첫 장면의 막이 올랐습니다!', '첫 장면이 준비되었습니다!'],
+    persona: ['페르소나가 완성되었습니다.', '갓 벼려낸 페르소나가 나왔습니다.', '따끈한 페르소나가 모루에서 내려왔습니다.'],
+    bot: ['봇 캐릭터가 완성되었습니다.', '갓 벼려낸 캐릭터가 나왔습니다.', '따끈한 캐릭터가 모루에서 내려왔습니다.'],
+    world: ['세계관이 완성되었습니다.', '갓 벼려낸 세계가 나왔습니다.', '따끈한 세계가 모루에서 내려왔습니다.'],
+    greeting: ['그리팅을 만들었습니다.', '첫 장면의 막이 올랐습니다.', '첫 장면이 준비되었습니다.'],
 };
 let loadingTextTimer = null;
 
@@ -525,8 +525,8 @@ export function bindUIEvents() {
     // 모바일에서는 입력칸 안내를 짧게 (두 줄로 넘어가지 않게)
     const narrowScreen = window.matchMedia?.('(max-width: 600px)');
     const setSupportPlaceholder = () => $('#pf-support-text').attr('placeholder', narrowScreen?.matches
-        ? '메시지 입력...'
-        : '메시지 입력... (Enter 줄바꿈 · Ctrl+Enter 보내기)');
+        ? '메시지 입력'
+        : '메시지 입력 (Enter 줄바꿈 · Ctrl+Enter 보내기)');
     setSupportPlaceholder();
     narrowScreen?.addEventListener?.('change', setSupportPlaceholder);
     // 대화창 위아래 그라데이션 — scroll은 위로 전달되지 않아 대화창에 직접 붙임 (프레임당 한 번만 계산)
@@ -963,11 +963,11 @@ function applyForgeModeUI() {
 
     $('#pf-manual-name').attr('placeholder', bot ? '제목 (비워도 됩니다)' : '캐릭터 이름 (비워도 됩니다)');
     $('#pf-manual-desc').attr('placeholder', bot
-        ? '참고할 설정을 붙여넣거나 직접 적어 주십시오...\n예: 세계관, 기존 인물 설정, 만들고 싶은 인물에 대한 메모'
-        : '기존 캐릭터의 설정을 붙여넣거나 직접 적어 주십시오...\n예: 외모, 성격, 말투, 세계관, {{user}}와의 관계 등');
+        ? '참고할 설정을 붙여넣거나 직접 적어 주십시오\n예: 세계관, 기존 인물 설정, 만들고 싶은 인물에 대한 메모'
+        : '기존 캐릭터의 설정을 붙여넣거나 직접 적어 주십시오\n예: 외모, 성격, 말투, 세계관, {{user}}와의 관계 등');
     $('#pf-concept-text').attr('placeholder', bot
-        ? '원하는 캐릭터 컨셉을 입력하십시오...\n예: 몰락한 가문의 마지막 기사, 충성과 복수 사이에서 흔들림\n예: 참고한 캐릭터의 동생으로, 둘이 함께 등장하는 다인봇'
-        : '원하는 캐릭터 컨셉을 입력하십시오...\n예: 시골에서 올라온 순진한 대학생, 호기심이 많지만 세상물정을 잘 모르는 성격\n예: 쿨하고 무관심해 보이지만 속은 따뜻한 직장인');
+        ? '원하는 캐릭터 컨셉을 입력하십시오\n예: 몰락한 가문의 마지막 기사, 충성과 복수 사이에서 흔들림\n예: 참고한 캐릭터의 동생으로, 둘이 함께 등장하는 다인봇'
+        : '원하는 캐릭터 컨셉을 입력하십시오\n예: 시골에서 올라온 순진한 대학생, 호기심이 많지만 세상물정을 잘 모르는 성격\n예: 쿨하고 무관심해 보이지만 속은 따뜻한 직장인');
     if (!state.isGenerating) {
         $('#pf-gen-loading-text').text(LOADING_TEXTS[bot ? 'bot' : 'persona'][0]);
     }
@@ -1213,7 +1213,7 @@ function renderCharacterOptions(query = '') {
     const bot = isBotMode();
     const q = query.trim().toLowerCase();
     let options = '<option value="-1">참고하지 않음</option>'
-        + `<option value="manual">${bot ? '✎ 직접 입력 (설정·프로필 붙여넣기)' : '✎ 직접 입력'}</option>`;
+        + `<option value="manual">${bot ? '직접 입력 (설정·프로필 붙여넣기)' : '직접 입력'}</option>`;
     chars.forEach((char, idx) => {
         if (!char?.name) return;
         if (!q || char.name.toLowerCase().includes(q) || String(idx) === current) {
@@ -1424,7 +1424,7 @@ function updateMaxTokensHint() {
     const info = describeConnection();
     const $hint = $('#pf-max-tokens-effective');
     if (info.error) {
-        $hint.text(`⚠ ${info.error}`).addClass('pf-effective-warn');
+        $hint.html(`<i class="fa-solid fa-triangle-exclamation"></i> ${escapeHtml(info.error)}`).addClass('pf-effective-warn');
         return;
     }
     const value = info.maxTokens ? info.maxTokens.toLocaleString() : '실리태번 기본값';
@@ -1563,7 +1563,7 @@ function renderWIBookHtml(book, query) {
     const badges = book.sources.map(source => {
         const warn = source === WI_SOURCES.persona && !isBotMode();
         const title = warn ? ' title="현재 페르소나에 연결된 로어북입니다. 선택하면 기존 페르소나 설정이 결과에 섞일 수 있습니다."' : '';
-        return `<span class="pf-wi-badge${warn ? ' pf-wi-badge-warn' : ' pf-wi-badge-source'}"${title}>${warn ? '⚠ ' : ''}${escapeHtml(source)}</span>`;
+        return `<span class="pf-wi-badge${warn ? ' pf-wi-badge-warn' : ' pf-wi-badge-source'}"${title}>${warn ? '<i class="fa-solid fa-triangle-exclamation"></i> ' : ''}${escapeHtml(source)}</span>`;
     }).join('');
     const count = book.selected && book.loaded
         ? `<span class="pf-wi-book-count">${book.entries.filter(e => e.selected).length}/${book.entries.length}</span>`
@@ -2575,7 +2575,7 @@ function renderSectionCards(sections, fullText = state.currentGeneration?.fullTe
             </div>
             <div class="pf-section-card-body${isEmpty ? ' empty' : ''}">${bodyContent}</div>
             <div class="pf-section-regen-panel" style="display: none;">
-                <textarea placeholder="이 섹션에 대한 수정 지시 (선택)...&#10;예: 더 짧게, 핵심만 남겨 줘&#10;예: 과거 사연을 좀 더 어둡게 바꿔 줘"></textarea>
+                <textarea placeholder="이 섹션에 대한 수정 지시 (선택)&#10;예: 더 짧게, 핵심만 남겨 줘&#10;예: 과거 사연을 좀 더 어둡게 바꿔 줘"></textarea>
                 <div class="pf-section-regen-actions">
                     <button class="pf-section-regen-go pf-primary-btn pf-small-btn" data-section-key="${sectionKey}">재생성</button>
                     <button class="pf-section-regen-cancel pf-small-btn">취소</button>
@@ -2619,7 +2619,7 @@ async function onModifyClick() {
         renderGenerationResult(result);
         playGlint('.pf-result-toolbar');
         $('#pf-modify-instructions').val('');
-        showToast('success', '프로필이 수정되었습니다!');
+        showToast('success', '프로필이 수정되었습니다.');
         playChime('done');
         autoSaveToHistory();
 
@@ -2780,7 +2780,7 @@ async function onRegenAllClick() {
 
         renderGenerationResult(result);
         playGlint('.pf-result-toolbar');
-        showToast('success', result.mode === 'bot' ? '봇 캐릭터를 새로 벼려냈습니다!' : '페르소나를 새로 벼려냈습니다!');
+        showToast('success', result.mode === 'bot' ? '봇 캐릭터를 새로 벼려냈습니다.' : '페르소나를 새로 벼려냈습니다.');
         countForged();
         playChime('done');
         autoSaveToHistory();
@@ -2955,7 +2955,7 @@ async function runTranslation(targetLang, { attach = false } = {}) {
             showToast('success', `${label} 번역을 이 기록에 붙였습니다. 제목 아래에서 원본과 바꿔 볼 수 있습니다.`);
             syncTranslationsToHistory(result);
         } else {
-            showToast('success', `${label}로 번역되었습니다!`);
+            showToast('success', `${label}로 번역되었습니다.`);
             autoSaveToHistory();
         }
 
@@ -3082,7 +3082,7 @@ async function onGreetingTranslate() {
         if (!greeting.truncated) playGlint('#pf-greeting-card');
         showToast(greeting.truncated ? 'warning' : 'success', greeting.truncated
             ? '번역한 그리팅이 출력 한도에 걸려 끝까지 작성되지 않았습니다. 최대 출력 토큰을 늘려 다시 시도하십시오.'
-            : `그리팅을 ${LANGUAGES[targetLang]?.label || targetLang}로 번역했습니다! (새 버전으로 추가)`);
+            : `그리팅을 ${LANGUAGES[targetLang]?.label || targetLang}로 번역했습니다. (새 버전으로 추가)`);
         playChime('done');
         syncGreetingToHistory();
     } catch (error) {
@@ -4016,7 +4016,7 @@ async function onGreetingModify() {
         if (!greeting.truncated) playGlint('#pf-greeting-card');
         showToast(greeting.truncated ? 'warning' : 'success', greeting.truncated
             ? '수정한 그리팅이 출력 한도에 걸려 끝까지 작성되지 않았습니다. 최대 출력 토큰을 늘려 다시 시도하십시오.'
-            : '그리팅이 수정되었습니다!');
+            : '그리팅이 수정되었습니다.');
         playChime('done');
         syncGreetingToHistory();
     } catch (error) {
@@ -4526,7 +4526,7 @@ async function onApplyPersonaClick() {
             log('Avatar list refresh failed: ' + e.message);
         }
 
-        showToast('success', `새 페르소나 "${personaName.trim()}" 가 생성되었습니다! 페르소나 관리에서 확인하십시오.`);
+        showToast('success', `새 페르소나를 만들었습니다: "${personaName.trim()}". 페르소나 관리에서 확인하십시오.`);
 
     } catch (error) {
         logError('createPersona', error);
@@ -5376,7 +5376,7 @@ function countForged() {
     saveSettings();
     renderForgeRank();
     const after = forgeRankOf(settings.forgedCount);
-    if (after.level > before) setTimeout(() => showToast('success', `칭호가 올랐습니다: ${after.rank.name}!`), 800);
+    if (after.level > before) setTimeout(() => showToast('success', `칭호가 올랐습니다: ${after.rank.name}`), 800);
 }
 
 function debounce(fn, wait) {
@@ -5655,7 +5655,7 @@ function populatePromptPresets() {
     const $select = $('#pf-prompt-preset-select');
 
     $select.empty();
-    $select.append('<option value="">프리셋을 선택하십시오...</option>');
+    $select.append('<option value="">프리셋을 선택하십시오</option>');
     // 고정 프리셋 — 이 탭의 프롬프트를 모두 기본값으로 (지울 수 없음)
     $select.append(`<option value="default">기본 (${SCOPE_LABELS[scope]} 탭 프롬프트 모두 기본값)</option>`);
     for (const { preset, idx } of presetsForScope(scope)) {
@@ -6361,9 +6361,8 @@ async function onPreviewClick() {
             note = result.note;
             const connection = describeConnection();
             const meta = connection.error
-                ? `⚠ ${connection.error}`
-                : `${connection.label} · 최대 출력 ${connection.maxTokens ? connection.maxTokens.toLocaleString() : '기본값'} 토큰`;
-            items.forEach(item => { item.meta = meta; });
+                || `${connection.label} · 최대 출력 ${connection.maxTokens ? connection.maxTokens.toLocaleString() : '기본값'} 토큰`;
+            items.forEach(item => { item.meta = meta; item.metaWarn = !!connection.error; });
         }
     } catch (error) {
         previewItems = [];
@@ -6393,7 +6392,7 @@ async function onPreviewClick() {
                 <div class="pf-preview-head">
                     <div>
                         <div class="pf-preview-title">${escapeHtml(item.title)}</div>
-                        <div class="pf-preview-meta">${escapeHtml(item.meta || '')} · 입력 약 ${totalTokens.toLocaleString()}토큰</div>
+                        <div class="pf-preview-meta">${item.metaWarn ? '<i class="fa-solid fa-triangle-exclamation"></i> ' : ''}${escapeHtml(item.meta || '')} · 입력 약 ${totalTokens.toLocaleString()}토큰</div>
                     </div>
                     <button class="pf-btn pf-small-btn pf-preview-copy" data-idx="${idx}" title="이 요청 전체 복사"><i class="fa-regular fa-copy"></i> 복사</button>
                 </div>
